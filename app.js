@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.6';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.7';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -47,6 +47,7 @@ const S = {
   t: 0,
   style: 'noir',
   emoji: '😶',
+  keepAudio: true,
   job: null,        // tâche en cours (analyse ou création), annulable
   playing: false,
   srcUrl: null,
@@ -70,7 +71,8 @@ const isPhoto = () => S.kind === 'photo';
 
 function show(step) {
   for (const s of ['home', 'scan', 'review', 'export', 'done']) $('s-' + s).hidden = s !== step;
-  $('stage').hidden = !['scan', 'review', 'export'].includes(step);
+  const host = { scan: $('scanFrame'), review: $('stage'), export: $('exportFrame') }[step];
+  if (host && view.parentNode !== host) host.prepend(view);
   window.scrollTo(0, 0);
 }
 
@@ -139,7 +141,8 @@ async function init() {
     S.parallel = workers.length;
     $('file').disabled = false;
     $('pickLabel').removeAttribute('aria-disabled');
-    $('pickText').textContent = 'Choisir une vidéo ou une photo';
+    $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
+    $('footNote').textContent = matchMedia('(pointer: fine)').matches ? 'Rien ne quitte ton ordinateur.' : 'Rien ne quitte ton téléphone.';
   } catch (e) {
     console.error(e);
     $('pickText').textContent = 'Outil indisponible';
@@ -239,8 +242,8 @@ async function loadFile(file) {
   for (const c of [view, work, preview]) { c.width = S.W; c.height = S.H; }
 
   show('scan');
-  $('scanBar').style.width = '0';
-  $('scanText').textContent = 'Préparation…';
+  $('scanBar').style.height = '0';
+  $('scanText').textContent = '0%';
   await scan();
 }
 
@@ -271,10 +274,9 @@ async function scan() {
   const release = (r) => { if (waiting.length) waiting.shift()(r); else free.push(r); if (onRelease) onRelease(); };
 
   const progress = () => {
-    const left = (performance.now() - started) / done * (total - done) / 1000;
-    $('scanBar').style.width = (done / total * 100) + '%';
-    $('scanText').textContent = isPhoto() ? 'Recherche…'
-      : `Image ${done} sur ${total}` + (done > 15 ? ` · encore environ ${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
+    const pct = Math.floor(done / total * 100);
+    $('scanBar').style.height = pct + '%';
+    $('scanText').textContent = pct + '%';
   };
   // Aperçu : une image avec ses visages masqués, de temps en temps.
   let shown = null;
@@ -567,7 +569,8 @@ function renderReview() {
   drawSource(vctx);
   paint(vctx, S.t, true);
   $('time').value = S.t;
-  $('timeText').textContent = `${secs(S.t)} sur ${secs(S.duration)}`;
+  drawTimeline();
+  placeMaskBar();
 }
 
 function openReview(t) {
@@ -575,9 +578,8 @@ function openReview(t) {
   const time = $('time');
   time.max = S.duration;
   time.step = 1 / S.fps;
-  for (const id of ['mStart', 'mEnd']) $(id).max = S.duration;
   for (const el of document.querySelectorAll('.videoOnly')) el.hidden = isPhoto();
-  $('export').textContent = isPhoto() ? 'Créer la photo masquée' : 'Créer la vidéo masquée';
+  $('hint').textContent = (matchMedia('(pointer: fine)').matches ? 'Clique sur' : 'Touche') + ' un visage pour le masquer ou le démasquer.';
   $('stats').hidden = !DEBUG || isPhoto();
   if (DEBUG && !isPhoto()) {
     const n = S.frames.length;
@@ -585,21 +587,63 @@ function openReview(t) {
       + `détection ${Math.round(S.detectMs / Math.max(1, S.detectCount))} ms/image sur ${S.parallel || 'page'} fils, `
       + `${S.seekFallbacks} reprises, source ${S.srcFps.toFixed(1)} i/s, ${navigator.hardwareConcurrency || '?'} cœurs, ${navigator.deviceMemory || '?'} Go`;
   }
+  sizeTimeline();
   refreshPanels();
   goTo(t);
+}
+
+// Zone réellement occupée par l'image dans le canevas affiché (l'image est centrée, sans déformation).
+function drawnRect() {
+  const r = view.getBoundingClientRect();
+  const k = Math.min(r.width / S.W, r.height / S.H);
+  const w = S.W * k, h = S.H * k;
+  return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, w, h, k };
+}
+
+// La frise sous l'image : un trait par visage suivi, sur la durée où il est masqué, et le curseur.
+function sizeTimeline() {
+  const c = $('tracks');
+  const r = c.getBoundingClientRect();
+  if (!r.width) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * dpr);
+  c.height = Math.round(r.height * dpr);
+}
+
+function drawTimeline() {
+  if (isPhoto()) return;
+  const c = $('tracks');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  if (!W) return;
+  ctx.clearRect(0, 0, W, H);
+  const N = Math.max(1, S.frames.length);
+  const rows = 3, rowH = Math.max(2, Math.floor(H / 6));
+  ctx.fillStyle = '#efede6';
+  S.tracks.forEach((t, i) => {
+    if (t.removed) return;
+    const idx = [...t.dets.keys()];
+    const a = Math.max(0, idx[0] - HOLD_FRAMES), b = Math.min(N - 1, idx[idx.length - 1] + HOLD_FRAMES);
+    const y = Math.round(H * (0.2 + 0.25 * (i % rows)));
+    ctx.fillRect(Math.floor(a / N * W), y, Math.max(2, Math.ceil((b - a + 1) / N * W)), rowH);
+  });
+  ctx.fillStyle = '#e4ff3a';
+  for (const m of S.manual) ctx.fillRect(Math.floor(m.t0 / S.duration * W), Math.round(H * 0.85), Math.max(2, Math.ceil((m.t1 - m.t0) / S.duration * W)), rowH);
+  const x = Math.round(S.t / Math.max(0.001, S.duration) * (W - 3));
+  ctx.fillRect(x, 0, 3, H);
 }
 
 function stopPlay() {
   if (!S.playing) return;
   S.playing = false;
   video.pause();
-  $('play').textContent = 'Lecture';
+  $('play').textContent = '▶';
 }
 
 async function togglePlay() {
   if (S.playing) { stopPlay(); S.t = video.currentTime; renderReview(); return; }
   S.playing = true;
-  $('play').textContent = 'Pause';
+  $('play').textContent = '❚❚';
   video.muted = true;
   if (S.t >= S.duration - 0.05) await seekTo(0);
   try { await video.play(); } catch { stopPlay(); return; }
@@ -613,49 +657,61 @@ async function togglePlay() {
   requestAnimationFrame(tick);
 }
 
+// La barre jaune sous le masque sélectionné : taille et durée pour un masque ajouté, retrait pour un automatique.
 function refreshPanels() {
   const m = S.sel && S.sel.manual;
   const tr = S.sel && S.sel.track;
-  $('manualPanel').hidden = !m;
-  if (m) {
-    $('manualTitle').textContent = 'Masque ajouté n° ' + (S.manual.indexOf(m) + 1);
-    $('mSize').value = m.size;
-    $('mStart').value = m.t0;
-    $('mEnd').value = m.t1;
-    $('mStartText').textContent = secs(m.t0);
-    $('mEndText').textContent = secs(m.t1);
-  }
-  $('autoPanel').hidden = !tr;
-  if (tr) $('aToggle').textContent = tr.removed ? 'Remettre ce masque' : 'Retirer ce masque';
-
+  $('maskBar').hidden = !m && !tr;
+  $('mMinus').hidden = !m;
+  $('mPlus').hidden = !m;
+  $('mAll').hidden = !m || isPhoto();
+  $('mAll').classList.toggle('on', !!m && m.t0 <= 0 && m.t1 >= S.duration);
+  $('mDelete').textContent = tr && tr.removed ? '↺' : '×';
+  $('mDelete').title = tr ? (tr.removed ? 'Remettre ce masque' : 'Retirer ce masque') : 'Retirer';
   const removed = S.tracks.filter((t) => t.removed).length;
   $('restoreAll').hidden = !removed;
   $('restoreAll').textContent = removed > 1 ? `Remettre les ${removed} masques retirés` : 'Remettre le masque retiré';
+  placeMaskBar();
+}
 
-  const list = $('manualList');
-  list.textContent = '';
-  S.manual.forEach((x, i) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'chip' + (x === m ? ' on' : '');
-    b.textContent = isPhoto() ? `Masque ${i + 1}` : `Masque ${i + 1} · ${secs(x.t0)} à ${secs(x.t1)}`;
-    b.onclick = () => { stopPlay(); S.sel = { manual: x }; refreshPanels(); goTo(clamp(S.t, x.t0, x.t1)); };
-    list.appendChild(b);
-  });
+function selectedRect() {
+  if (S.sel && S.sel.manual) return manualAt(S.t).includes(S.sel.manual) ? manualRect(S.sel.manual) : null;
+  if (S.sel && S.sel.track) return (S.frames[frameIndex(S.t)] || []).find((b) => b.track === S.sel.track) || null;
+  return null;
+}
+
+function placeMaskBar() {
+  const bar = $('maskBar');
+  if (bar.hidden) return;
+  const r = selectedRect();
+  if (!r) { bar.hidden = true; return; }
+  const d = drawnRect();
+  const stage = $('stage').getBoundingClientRect();
+  const bw = bar.offsetWidth || 176, bh = 44;
+  let x = d.left + (r.x + r.w / 2) * d.k - bw / 2 - stage.left;
+  let y = d.top + (r.y + r.h) * d.k + 8 - stage.top;
+  if (y + bh > stage.height - 8) y = d.top + r.y * d.k - bh - 8 - stage.top;
+  x = clamp(x, 8, stage.width - bw - 8);
+  y = clamp(y, 8, stage.height - bh - 8);
+  bar.style.left = x + 'px';
+  bar.style.top = y + 'px';
 }
 
 function canvasPoint(e) {
-  const r = view.getBoundingClientRect();
-  return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  const d = drawnRect();
+  return { x: (e.clientX - d.left) / d.w, y: (e.clientY - d.top) / d.h };
 }
 
 let drag = null;
+const selectedManual = () => S.sel && S.sel.manual;
+const deselect = () => { S.sel = null; refreshPanels(); renderReview(); };
 
 view.addEventListener('pointerdown', (e) => {
   if ($('s-review').hidden) return;
   e.preventDefault();
   stopPlay();
   const p = canvasPoint(e);
+  if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) { deselect(); return; }
   const px = p.x * S.W, py = p.y * S.H;
 
   // 1. Un masque ajouté à la main : on le sélectionne et on peut le faire glisser.
@@ -690,48 +746,22 @@ view.addEventListener('pointermove', (e) => {
 
 for (const ev of ['pointerup', 'pointercancel']) view.addEventListener(ev, () => { drag = null; });
 
-const selectedManual = () => S.sel && S.sel.manual;
-const deselect = () => { S.sel = null; refreshPanels(); renderReview(); };
 
-$('mSize').addEventListener('input', (e) => {
-  const m = selectedManual();
-  if (!m) return;
-  m.size = +e.target.value;
-  renderReview();
-});
-$('mStart').addEventListener('input', (e) => {
-  const m = selectedManual();
-  if (!m) return;
-  m.t0 = Math.min(+e.target.value, m.t1);
-  refreshPanels();
-  goTo(m.t0);
-});
-$('mEnd').addEventListener('input', (e) => {
-  const m = selectedManual();
-  if (!m) return;
-  m.t1 = Math.max(+e.target.value, m.t0);
-  refreshPanels();
-  goTo(m.t1);
-});
+$('mMinus').onclick = () => { const m = selectedManual(); if (!m) return; m.size = clamp(m.size / 1.25, 0.04, 0.9); renderReview(); };
+$('mPlus').onclick = () => { const m = selectedManual(); if (!m) return; m.size = clamp(m.size * 1.25, 0.04, 0.9); renderReview(); };
 $('mAll').onclick = () => {
   const m = selectedManual();
   if (!m) return;
-  m.t0 = 0;
-  m.t1 = S.duration;
+  const whole = m.t0 <= 0 && m.t1 >= S.duration;
+  if (whole) { m.t0 = Math.max(0, S.t - 1); m.t1 = Math.min(S.duration, S.t + 1); } else { m.t0 = 0; m.t1 = S.duration; }
   refreshPanels();
   renderReview();
 };
-$('mDone').onclick = deselect;
 $('mDelete').onclick = () => {
+  if (S.sel && S.sel.track) { S.sel.track.removed = !S.sel.track.removed; refreshPanels(); renderReview(); return; }
   S.manual = S.manual.filter((x) => x !== selectedManual());
   deselect();
 };
-$('aToggle').onclick = () => {
-  if (S.sel && S.sel.track) S.sel.track.removed = !S.sel.track.removed;
-  refreshPanels();
-  renderReview();
-};
-$('aDone').onclick = deselect;
 $('restoreAll').onclick = () => {
   for (const t of S.tracks) t.removed = false;
   refreshPanels();
@@ -743,14 +773,28 @@ $('prev').onclick = () => { stopPlay(); goTo(S.t - 1 / S.fps); };
 $('next').onclick = () => { stopPlay(); goTo(S.t + 1 / S.fps); };
 $('play').onclick = togglePlay;
 
-$('styles').addEventListener('click', (e) => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  S.style = b.dataset.style;
-  if (b.dataset.emoji) S.emoji = b.dataset.emoji;
-  for (const x of $('styles').children) x.classList.toggle('on', x === b);
+// Le bouton carré fait défiler les styles de masque.
+const STYLES = [['noir', ''], ['emoji', '😶'], ['emoji', '💀'], ['emoji', '🐸']];
+$('styleBtn').onclick = () => {
+  const i = STYLES.findIndex(([st, em]) => st === S.style && (st === 'noir' || em === S.emoji));
+  const [st, em] = STYLES[(i + 1) % STYLES.length];
+  S.style = st;
+  if (em) S.emoji = em;
+  $('styleBtn').innerHTML = st === 'noir' ? '<span class="sq"></span>' : em;
   renderReview();
+};
+$('audioBtn').onclick = () => {
+  S.keepAudio = !S.keepAudio;
+  $('audioBtn').classList.toggle('on', S.keepAudio);
+  $('audioNote').textContent = S.keepAudio ? 'Son gardé. La voix aussi permet de reconnaître quelqu\'un.' : 'Son coupé : la vidéo sera muette.';
+};
+document.addEventListener('keydown', (e) => {
+  if ($('s-review').hidden || isPhoto() || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); goTo(S.t - 1 / S.fps); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); goTo(S.t + 1 / S.fps); }
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
 });
+window.addEventListener('resize', () => { if (!$('s-review').hidden) { sizeTimeline(); renderReview(); } });
 
 /* ---------- Création du fichier masqué ---------- */
 
@@ -763,12 +807,9 @@ function finish(blob, name, info) {
   (isPhoto() ? $('resultImg') : $('result')).src = S.resultUrl;
   $('download').href = S.resultUrl;
   $('download').download = name;
-  $('download').textContent = isPhoto() ? 'Télécharger la photo' : 'Télécharger la vidéo';
   $('share').hidden = !(navigator.canShare && navigator.canShare({ files: [S.resultFile] }));
-  $('doneTitle').textContent = isPhoto() ? 'Ta photo est prête.' : 'Ta vidéo est prête.';
-  $('doneCheck').textContent = isPhoto()
-    ? 'Regarde-la de près avant de la poster. Si un visage apparaît, reviens corriger les masques.'
-    : 'Regarde-la en entier avant de la poster. Si un visage apparaît, reviens corriger les masques.';
+  $('doneTitle').textContent = isPhoto() ? 'Prête.' : 'Prête.';
+  $('doneCheck').textContent = isPhoto() ? 'Regarde-la de près avant de poster.' : 'Regarde-la en entier avant de poster.';
   $('doneInfo').textContent = `${info}, ${(blob.size / 1e6).toFixed(1).replace('.', ',')} Mo.`;
   show('done');
 }
@@ -828,7 +869,7 @@ async function exportVideo() {
 
   // À faire tout de suite, pendant que le navigateur sait encore que l'utilisateur vient de toucher le bouton
   // (sinon l'iPhone refuse de lire la vidéo avec le son).
-  const keepAudio = $('audio').checked;
+  const keepAudio = S.keepAudio;
   let audioDest = null, audioFailed = false;
   if (keepAudio) {
     try {
@@ -852,6 +893,7 @@ async function exportVideo() {
   S.job = job;
   show('export');
   $('exportBar').style.width = '0';
+  $('exportPct').textContent = '0%';
   $('exportText').textContent = audioFailed ? "Le son n'a pas pu être repris : la vidéo sera muette." : '';
   await keepAwake(true);
 
@@ -878,7 +920,9 @@ async function exportVideo() {
   const frame = (t) => {
     if (!running) return;
     draw(t);
-    $('exportBar').style.width = clamp(t / S.duration * 100, 0, 100) + '%';
+    const pct = Math.floor(clamp(t / S.duration * 100, 0, 100));
+    $('exportBar').style.width = pct + '%';
+    $('exportPct').textContent = pct + '%';
   };
   const loop = hasRVFC
     ? (_, meta) => { frame(meta.mediaTime); if (running) video.requestVideoFrameCallback(loop); }
@@ -972,9 +1016,14 @@ function goHome() {
 
 $('scanCancel').onclick = goHome;
 $('exportCancel').onclick = cancelJob;
-$('restart1').onclick = goHome;
 $('restart2').onclick = goHome;
 
+for (const ev of ['dragenter', 'dragover']) $('pickLabel').addEventListener(ev, (e) => { e.preventDefault(); $('pickLabel').classList.add('over'); });
+for (const ev of ['dragleave', 'drop']) $('pickLabel').addEventListener(ev, (e) => { e.preventDefault(); $('pickLabel').classList.remove('over'); });
+$('pickLabel').addEventListener('drop', (e) => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && !$('file').disabled) loadFile(f);
+});
 $('file').addEventListener('change', (e) => {
   const f = e.target.files && e.target.files[0];
   if (f) loadFile(f);
