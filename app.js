@@ -20,6 +20,9 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
+const VERSION = '2026-10-03.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
+
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
 
 const video = $('src');
@@ -53,6 +56,7 @@ const S = {
   wake: null,
   scanMs: 0,
   seekFallbacks: 0, // images reprises une par une après la lecture en continu
+  detectMs: 0, detectCount: 0,
   raw: [],          // détections brutes, image par image
 };
 
@@ -255,6 +259,8 @@ async function scan() {
   const results = new Array(total);
   const started = performance.now();
   S.seekFallbacks = 0;
+  S.detectMs = 0;
+  S.detectCount = 0;
 
   // Les images sont distribuées aux fils d'exécution libres, au fur et à mesure.
   const free = [...S.runners], waiting = [];
@@ -284,7 +290,10 @@ async function scan() {
     const runner = await acquire();
     if (job.cancelled || error) { release(runner); return; }
     const bitmap = await createImageBitmap(canvas);
+    const t0 = performance.now();
     tasks.push(runner.detect(bitmap, side).then((boxes) => {
+      S.detectMs += performance.now() - t0;
+      S.detectCount++;
       for (let k = i; k <= j; k++) if (!results[k]) { results[k] = boxes; done++; }
       showPreview(canvas, boxes);
       progress();
@@ -559,6 +568,13 @@ function openReview(t) {
   for (const id of ['mStart', 'mEnd']) $(id).max = S.duration;
   for (const el of document.querySelectorAll('.videoOnly')) el.hidden = isPhoto();
   $('export').textContent = isPhoto() ? 'Créer la photo masquée' : 'Créer la vidéo masquée';
+  $('stats').hidden = !DEBUG;
+  if (DEBUG) {
+    const n = S.frames.length;
+    $('stats').textContent = `${S.W}x${S.H}, ${n} images, ${Math.round(S.scanMs / 1000)} s (${Math.round(S.scanMs / n)} ms/image), `
+      + `détection ${Math.round(S.detectMs / Math.max(1, S.detectCount))} ms/image sur ${S.parallel || 'page'} fils, `
+      + `${S.seekFallbacks} reprises, source ${S.srcFps.toFixed(1)} i/s, ${navigator.hardwareConcurrency || '?'} cœurs, ${navigator.deviceMemory || '?'} Go`;
+  }
   refreshPanels();
   goTo(t);
 }
@@ -956,5 +972,7 @@ $('file').addEventListener('change', (e) => {
 
 // Accès aux données pour les tests en local uniquement.
 if (location.hostname === 'localhost') window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
+
+$('version').textContent = 'version ' + VERSION;
 
 init();
