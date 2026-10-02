@@ -6,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
 const GROW = 1.3;             // chaque case est agrandie de 30 % autour du visage
+const ANALYSIS_FPS = 30;      // images regardées par seconde de vidéo
 const HOLD_FRAMES = 4;        // chaque masque commence 4 images avant et finit 4 images après le visage
 const KEEP_SCORE = 0.15;      // un visage déjà suivi reste suivi même quand il devient très incertain
 // Réglages du suivi d'un visage d'une image à l'autre.
@@ -20,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -243,17 +244,17 @@ async function loadFile(file) {
   await scan();
 }
 
-/* ---------- Analyse : chaque image de la vidéo est regardée, sans en sauter ---------- */
+/* ---------- Analyse : la vidéo est regardée 30 fois par seconde ---------- */
 
 async function scan() {
   const job = { cancelled: false };
   S.job = job;
   await keepAwake(true);
 
-  // On regarde au moins 30 images par seconde, et plus si la vidéo en a plus.
-  const measured = isPhoto() ? 1 : await measureFps();
-  S.srcFps = measured;
-  S.fps = isPhoto() ? 1 : clamp(Math.round(measured), 30, 60);
+  // On regarde 30 images par seconde. Une vidéo à 60 images par seconde est regardée une image sur deux :
+  // les masques couvrent quand même toutes les images, puisqu'ils débordent de plusieurs images autour de chaque visage.
+  S.srcFps = isPhoto() ? 1 : await measureFps();
+  S.fps = isPhoto() ? 1 : ANALYSIS_FPS;
   const total = isPhoto() ? 1 : Math.max(1, Math.ceil(S.duration * S.fps));
   const side = !isPhoto() && $('fast').checked ? DET_SIDE : DET_SIDE_DEEP;
   const results = new Array(total);
