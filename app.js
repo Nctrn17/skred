@@ -20,7 +20,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -568,8 +568,8 @@ function openReview(t) {
   for (const id of ['mStart', 'mEnd']) $(id).max = S.duration;
   for (const el of document.querySelectorAll('.videoOnly')) el.hidden = isPhoto();
   $('export').textContent = isPhoto() ? 'Créer la photo masquée' : 'Créer la vidéo masquée';
-  $('stats').hidden = !DEBUG;
-  if (DEBUG) {
+  $('stats').hidden = !DEBUG || isPhoto();
+  if (DEBUG && !isPhoto()) {
     const n = S.frames.length;
     $('stats').textContent = `${S.W}x${S.H}, ${n} images, ${Math.round(S.scanMs / 1000)} s (${Math.round(S.scanMs / n)} ms/image), `
       + `détection ${Math.round(S.detectMs / Math.max(1, S.detectCount))} ms/image sur ${S.parallel || 'page'} fils, `
