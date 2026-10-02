@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.5';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.6';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -333,7 +333,8 @@ async function scan() {
 // reprise ensuite image par image. La lecture est mise en pause quand l'analyse ne suit pas.
 async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   if (!hasRVFC || document.hidden) return;
-  const ring = Array.from({ length: S.runners.length + 2 }, () => {
+  const n = S.runners.length;
+  const ring = Array.from({ length: 2 * n + 3 }, () => {
     const c = document.createElement('canvas');
     c.width = S.W;
     c.height = S.H;
@@ -364,19 +365,22 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
     if (t > lastTime) {
       const skipped = lastPresented >= 0 && meta.presentedFrames - lastPresented > 1;
       flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
-      if (skipped) { setRate(rate * 0.75); sinceSkip = 0; } else if (++sinceSkip >= 30) { setRate(rate * 1.25); sinceSkip = 0; }
+      // La vitesse de lecture suit le rythme de l'analyse : on ralentit quand la file s'allonge,
+      // on accélère quand elle est vide. La pause n'est qu'un dernier recours.
+      if (skipped) { setRate(rate * 0.75); sinceSkip = 0; }
+      else if (++sinceSkip >= 10) { sinceSkip = 0; if (inFlight > n) setRate(rate * 0.85); else if (inFlight <= 1) setRate(rate * 1.1); }
       const canvas = ring[ringPos++ % ring.length];
       drawSource(canvas.getContext('2d'));
       keepForPreview(canvas);
       prev = { canvas, t };
       lastTime = t;
       lastPresented = meta.presentedFrames;
-      if (inFlight >= S.runners.length + 1 && !paused) { paused = true; video.pause(); }
+      if (inFlight >= 2 * n + 1 && !paused) { paused = true; video.pause(); }
     }
     video.requestVideoFrameCallback(onFrame);
   };
   const resume = () => {
-    if (paused && !ended && !stop && !document.hidden && inFlight <= S.runners.length - 1) { paused = false; video.play().catch(() => {}); }
+    if (paused && !ended && !stop && !document.hidden && inFlight <= n) { paused = false; video.play().catch(() => {}); }
   };
   const onEnded = () => { ended = true; };
   const onVisibility = () => { if (document.hidden) { paused = true; video.pause(); } else resume(); };
