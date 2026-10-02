@@ -34,7 +34,7 @@ const S = {
   runners: [], parallel: 0,
   kind: 'video',    // 'video' ou 'photo'
   img: null,
-  W: 0, H: 0, duration: 0, fps: 30,
+  W: 0, H: 0, duration: 0, fps: 30, srcFps: 30,
   tracks: [],       // un suivi par visage : { id, dets: Map(image -> cadre), removed }
   frames: [],       // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
   manual: [],       // masques ajoutés à la main : [{ id, cx, cy, size, t0, t1 }]
@@ -52,6 +52,7 @@ const S = {
   audioNode: null,
   wake: null,
   scanMs: 0,
+  seekFallbacks: 0, // images reprises une par une après la lecture en continu
   raw: [],          // détections brutes, image par image
 };
 
@@ -246,49 +247,67 @@ async function scan() {
   await keepAwake(true);
 
   // On regarde au moins 30 images par seconde, et plus si la vidéo en a plus.
-  S.fps = isPhoto() ? 1 : clamp(Math.round(await measureFps()), 30, 60);
+  const measured = isPhoto() ? 1 : await measureFps();
+  S.srcFps = measured;
+  S.fps = isPhoto() ? 1 : clamp(Math.round(measured), 30, 60);
   const total = isPhoto() ? 1 : Math.max(1, Math.ceil(S.duration * S.fps));
   const side = !isPhoto() && $('fast').checked ? DET_SIDE : DET_SIDE_DEEP;
   const results = new Array(total);
   const started = performance.now();
+  S.seekFallbacks = 0;
 
   // Les images sont distribuées aux fils d'exécution libres, au fur et à mesure.
   const free = [...S.runners], waiting = [];
   const acquire = () => (free.length ? Promise.resolve(free.pop()) : new Promise((r) => waiting.push(r)));
-  const release = (r) => (waiting.length ? waiting.shift()(r) : free.push(r));
   const tasks = [];
-  let done = 0, shown = -1, error = null;
+  let done = 0, error = null, onRelease = null;
+  const release = (r) => { if (waiting.length) waiting.shift()(r); else free.push(r); if (onRelease) onRelease(); };
 
-  for (let i = 0; i < total && !job.cancelled && !error; i++) {
-    if (!isPhoto()) await seekTo(frameTime(i));
+  const progress = () => {
+    const left = (performance.now() - started) / done * (total - done) / 1000;
+    $('scanBar').style.width = (done / total * 100) + '%';
+    $('scanText').textContent = isPhoto() ? 'Recherche…'
+      : `Image ${done} sur ${total}` + (done > 15 ? ` · encore environ ${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
+  };
+  // Aperçu : une image avec ses visages masqués, de temps en temps.
+  let shown = null;
+  const keepForPreview = (canvas) => { if (!shown) { pctx.drawImage(canvas, 0, 0); shown = canvas; } };
+  const showPreview = (canvas, boxes) => {
+    if (canvas !== shown) return;
+    vctx.drawImage(preview, 0, 0);
+    vctx.fillStyle = '#000';
+    for (const b of boxes.filter((x) => x.s >= MIN_SCORE).map(grow)) vctx.fillRect(b.x, b.y, b.w, b.h);
+    shown = null;
+  };
+  // Analyse une image (déjà dessinée sur `canvas`) et range le résultat pour les images i à j.
+  const submit = async (canvas, i, j) => {
     const runner = await acquire();
-    if (job.cancelled || error) { release(runner); break; }
-    drawSource(wctx);
-    if (shown < 0) { pctx.drawImage(work, 0, 0); shown = i; }
-    const bitmap = await createImageBitmap(work);
+    if (job.cancelled || error) { release(runner); return; }
+    const bitmap = await createImageBitmap(canvas);
     tasks.push(runner.detect(bitmap, side).then((boxes) => {
-      results[i] = boxes;
-      done++;
-      if (i === shown) {
-        // Aperçu : l'image avec ses visages masqués.
-        vctx.drawImage(preview, 0, 0);
-        vctx.fillStyle = '#000';
-        for (const b of boxes.filter((x) => x.s >= MIN_SCORE).map(grow)) vctx.fillRect(b.x, b.y, b.w, b.h);
-        shown = -1;
-      }
-      const left = (performance.now() - started) / done * (total - done) / 1000;
-      $('scanBar').style.width = (done / total * 100) + '%';
-      $('scanText').textContent = isPhoto() ? 'Recherche…'
-        : `Image ${done} sur ${total}` + (done > 15 ? ` · encore environ ${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
+      for (let k = i; k <= j; k++) if (!results[k]) { results[k] = boxes; done++; }
+      showPreview(canvas, boxes);
+      progress();
     }, (e) => { error = e; }).finally(() => release(runner)));
+  };
+
+  if (!isPhoto()) await scanByPlayback(job, total, submit, keepForPreview, () => error);
+  // Le reste (tout, si la lecture en continu n'est pas possible) : image par image, en se positionnant sur chacune.
+  for (let i = 0; i < total && !job.cancelled && !error; i++) {
+    if (results[i]) continue;
+    if (!isPhoto()) { await seekTo(frameTime(i)); S.seekFallbacks++; }
+    if (job.cancelled || error) break;
+    drawSource(wctx);
+    keepForPreview(work);
+    await submit(work, i, i);
   }
   await Promise.all(tasks);
   await keepAwake(false);
   if (job.cancelled) return;
   S.job = null;
-  if (error) {
+  if (error || results.some((r) => !r)) {
     // Une image non analysée serait une image non masquée : on préfère tout arrêter.
-    console.error(error);
+    console.error(error || 'images manquantes');
     goHome();
     fail($('homeError'), "L'analyse a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
     return;
@@ -297,6 +316,76 @@ async function scan() {
   S.raw = results;
   buildTracks(results);
   openReview(0);
+}
+
+// Lecture en continu : chaque image présentée par le navigateur est copiée au vol et envoyée à l'analyse.
+// Le navigateur numérote les images présentées : si une a été sautée, on le sait, et elle sera
+// reprise ensuite image par image. La lecture est mise en pause quand l'analyse ne suit pas.
+async function scanByPlayback(job, total, submit, keepForPreview, failed) {
+  if (!hasRVFC || document.hidden) return;
+  const ring = Array.from({ length: S.runners.length + 2 }, () => {
+    const c = document.createElement('canvas');
+    c.width = S.W;
+    c.height = S.H;
+    return c;
+  });
+  const frameDur = 1 / clamp(S.srcFps, 10, 120);
+  const firstSlot = (t) => Math.ceil(t * S.fps - 0.5);
+  let ringPos = 0, inFlight = 0, prev = null, lastPresented = -1, lastTime = -1, lastSeen = performance.now();
+  let paused = false, ended = false, stop = false;
+
+  // Range l'image précédente : elle vaut jusqu'à l'image suivante, ou jusqu'à sa durée normale si une image a été sautée.
+  const flush = (end) => {
+    if (!prev) return;
+    const i = Math.max(0, firstSlot(prev.t)), j = Math.min(total - 1, firstSlot(end) - 1);
+    const cap = prev;
+    prev = null;
+    if (j < i) return;
+    inFlight++;
+    submit(cap.canvas, i, j).finally(() => { inFlight--; });
+  };
+  const onFrame = (_, meta) => {
+    if (stop) return;
+    lastSeen = performance.now();
+    const t = meta.mediaTime;
+    if (t > lastTime) {
+      const skipped = lastPresented >= 0 && meta.presentedFrames - lastPresented > 1;
+      flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
+      const canvas = ring[ringPos++ % ring.length];
+      drawSource(canvas.getContext('2d'));
+      keepForPreview(canvas);
+      prev = { canvas, t };
+      lastTime = t;
+      lastPresented = meta.presentedFrames;
+      if (inFlight >= S.runners.length + 1 && !paused) { paused = true; video.pause(); }
+    }
+    video.requestVideoFrameCallback(onFrame);
+  };
+  const resume = () => {
+    if (paused && !ended && !stop && !document.hidden && inFlight <= S.runners.length - 1) { paused = false; video.play().catch(() => {}); }
+  };
+  const onEnded = () => { ended = true; };
+  const onVisibility = () => { if (document.hidden) { paused = true; video.pause(); } else resume(); };
+
+  await seekTo(0);
+  video.muted = true;
+  video.playbackRate = 1;
+  video.addEventListener('ended', onEnded);
+  document.addEventListener('visibilitychange', onVisibility);
+  video.requestVideoFrameCallback(onFrame);
+  const timer = setInterval(resume, 50);
+  try {
+    await video.play();
+    // Fin normale, annulation, erreur, ou plus aucune image depuis 4 s (lecture bloquée).
+    while (!ended && !job.cancelled && !failed() && (paused || document.hidden || performance.now() - lastSeen < 4000)) await sleep(50);
+  } catch { /* lecture refusée : tout sera fait image par image */ }
+  stop = true;
+  clearInterval(timer);
+  video.removeEventListener('ended', onEnded);
+  document.removeEventListener('visibilitychange', onVisibility);
+  video.pause();
+  if (ended && prev) flush(S.duration + 1);
+  else prev = null;
 }
 
 /* ---------- Suivi : une seule case par visage, d'une image à l'autre ---------- */

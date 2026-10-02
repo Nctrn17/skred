@@ -62,7 +62,7 @@ const STATS = `const stats = () => { const S = window.skred.S; const miss = [0,0
   if (${known}) S.frames.forEach((boxes, i) => truth((i + 0.5) / S.fps).forEach(([X, Y], k) => { if (!boxes.some(b => X >= b.x && X <= b.x + b.w && Y >= b.y && Y <= b.y + b.h)) miss[k]++; }));
   return { suivis: S.tracks.length, casesParImage: +(S.frames.reduce((a, f) => a + f.length, 0) / S.frames.length).toFixed(1), imagesSansMasque: ${known} ? miss : 'non mesuré' }; };`;
 out.scan = await run(`${TRUTH} ${STATS} const S = window.skred.S;
-  return { taille: S.W + 'x' + S.H, images: S.frames.length, msParImage: Math.round(S.scanMs / S.frames.length),
+  return { taille: S.W + 'x' + S.H, images: S.frames.length, msParImage: Math.round(S.scanMs / S.frames.length), imagesReprisesUneParUne: S.seekFallbacks, fpsSource: +S.srcFps.toFixed(2),
     visagesSursParImage: +(S.raw.reduce((a, f) => a + f.filter(d => d.s >= 0.3).length, 0) / S.raw.length).toFixed(1), ...stats() };`);
 out.reglages = await run(`${TRUTH} ${STATS} const res = {};
   for (const [match, lowMatch] of [[1, 0], [1, 0.6], [1.6, 0], [1.6, 0.6], [2.5, 0.6], [2.5, 1]]) { window.skred.retrack({ match, lowMatch }); res[match + ' / ' + lowMatch] = stats(); }
