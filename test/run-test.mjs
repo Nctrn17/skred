@@ -49,7 +49,7 @@ const out = { parallel: await run(`return window.skred.S.parallel;`) };
 // TRUTH donne la position connue des 4 visages des vidéos fabriquées par make-test-video.py, à l'instant t.
 const file = process.argv[2] || 'test2.mp4';
 const K = Number(process.argv[3]) || 1;
-const known = file === 'test2.mp4' || file === 'test3.mp4';
+const known = /^test\d\.mp4$/.test(file);   // vidéos fabriquées, positions des visages connues
 const TRUTH = `const truth = (t) => [[60+280*Math.abs(Math.sin(t*2.5))+120, 120+200*Math.abs(Math.cos(t*1.7))+135], [124,869], [517+60*Math.sin(t),1022], [632,1195]].map(([x, y]) => [x * ${K}, y * ${K}]);`;
 if (process.argv.includes('fast')) await run(`document.getElementById('fast').checked = true;`);
 

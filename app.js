@@ -20,7 +20,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -342,6 +342,9 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   const firstSlot = (t) => Math.ceil(t * S.fps - 0.5);
   let ringPos = 0, inFlight = 0, prev = null, lastPresented = -1, lastTime = -1, lastSeen = performance.now();
   let paused = false, ended = false, stop = false;
+  // Vitesse de lecture : assez lente pour copier chaque image, relevée tant qu'aucune image n'est sautée.
+  let rate = clamp(30 / S.srcFps, 0.25, 1), sinceSkip = 0;
+  const setRate = (r) => { rate = clamp(r, 0.25, 1); try { video.playbackRate = rate; } catch { /* vitesse refusée */ } };
 
   // Range l'image précédente : elle vaut jusqu'à l'image suivante, ou jusqu'à sa durée normale si une image a été sautée.
   const flush = (end) => {
@@ -360,6 +363,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
     if (t > lastTime) {
       const skipped = lastPresented >= 0 && meta.presentedFrames - lastPresented > 1;
       flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
+      if (skipped) { setRate(rate * 0.75); sinceSkip = 0; } else if (++sinceSkip >= 60) { setRate(rate * 1.15); sinceSkip = 0; }
       const canvas = ring[ringPos++ % ring.length];
       drawSource(canvas.getContext('2d'));
       keepForPreview(canvas);
@@ -378,7 +382,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
 
   await seekTo(0);
   video.muted = true;
-  video.playbackRate = 1;
+  setRate(rate);
   video.addEventListener('ended', onEnded);
   document.addEventListener('visibilitychange', onVisibility);
   video.requestVideoFrameCallback(onFrame);
@@ -393,6 +397,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   video.removeEventListener('ended', onEnded);
   document.removeEventListener('visibilitychange', onVisibility);
   video.pause();
+  video.playbackRate = 1;
   if (ended && prev) flush(S.duration + 1);
   else prev = null;
 }
