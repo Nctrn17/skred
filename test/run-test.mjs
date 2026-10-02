@@ -86,7 +86,12 @@ out.export = await run(`${TRUTH} const S = window.skred.S; const v = document.ge
   const best = bad.reduce((a, b) => (b.reduce((p, q) => p + q, 0) < a.reduce((p, q) => p + q, 0) ? b : a));
   const txt = await S.resultFile.text();
   return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, visagesVisibles: best,
-    metadonnees: ['Lavf', '48.8566', 'TestPhone'].filter(k => txt.includes(k)) };`);
+    metadonnees: ['Lavf', '48.8566', 'TestPhone'].filter(k => txt.includes(k)), datesDansLeFichier: await (async () => {
+      // Date de création écrite dans chaque en-tête du MP4 : doit valoir 0 partout.
+      const h = new Uint8Array(await S.resultFile.slice(0, 1 << 20).arrayBuffer()); const found = [];
+      for (let p = 4; p + 12 < h.length; p++) { const k = String.fromCharCode(h[p], h[p + 1], h[p + 2], h[p + 3]);
+        if (k === 'mvhd' || k === 'tkhd' || k === 'mdhd') found.push(k + '=' + new DataView(h.buffer).getUint32(p + 8)); }
+      return found; })() };`);
 
 if (save) {
   const b64 = await run(`const buf = new Uint8Array(await window.skred.S.resultFile.arrayBuffer()); let s = ''; for (let i = 0; i < buf.length; i += 32768) s += String.fromCharCode(...buf.subarray(i, i + 32768)); return btoa(s);`);

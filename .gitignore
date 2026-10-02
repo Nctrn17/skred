@@ -4,3 +4,6 @@ node_modules/
 test/*
 !test/run-test.mjs
 !test/make-test-video.py
+
+.vercel
+.env*

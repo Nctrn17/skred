@@ -376,8 +376,13 @@ function buildTracks(results) {
       }
     }
     for (let j = Math.max(0, a - 1); j <= Math.min(N - 1, b + 1); j++) {
-      const box = union(union(path[j - a - 1], path[j - a]), path[j - a + 1]);
-      frames[j].push({ ...grow(box), track: t });
+      const near = [path[j - a - 1], path[j - a], path[j - a + 1]].filter(Boolean);
+      const box = near.reduce(union);
+      const biggest = Math.max(...near.map((r) => r.w * r.h));
+      // Si le visage a sauté loin d'une image à l'autre (caméra qui tourne vite), une seule case
+      // couvrirait tout l'écran : on garde alors les positions séparées.
+      if (box.w * box.h <= 4 * biggest) frames[j].push({ ...grow(box), track: t });
+      else for (const r of near) frames[j].push({ ...grow(r), track: t });
     }
   }
   S.tracks = tracks;
@@ -663,6 +668,26 @@ async function exportPhoto() {
   finish(blob, 'photo-masquee.jpg', 'Fichier JPEG');
 }
 
+// Le navigateur écrit dans un fichier MP4 la date et l'heure de sa création. On les remet à zéro :
+// le fichier produit ne dit plus quand il a été fait.
+async function scrubMp4Dates(blob) {
+  const head = new Uint8Array(await blob.slice(0, 1 << 20).arrayBuffer());
+  const view = new DataView(head.buffer);
+  const type = (p) => String.fromCharCode(head[p + 4], head[p + 5], head[p + 6], head[p + 7]);
+  const walk = (start, end) => {
+    for (let p = start; p + 8 <= end;) {
+      const size = view.getUint32(p);
+      if (size < 8 || p + size > end) return;   // boîte coupée ou de forme inattendue : on n'y touche pas
+      const t = type(p);
+      if (t === 'moov' || t === 'trak' || t === 'mdia') walk(p + 8, p + size);
+      else if (t === 'mvhd' || t === 'tkhd' || t === 'mdhd') head.fill(0, p + 12, p + 12 + (head[p + 8] === 1 ? 16 : 8));
+      p += size;
+    }
+  };
+  walk(0, head.length);
+  return new Blob([head, blob.slice(head.length)], { type: blob.type });
+}
+
 function pickMime() {
   if (!window.MediaRecorder) return null;
   const list = [
@@ -784,7 +809,8 @@ async function exportVideo() {
 
   const type = (rec.mimeType || mime).split(';')[0];
   const mp4 = type.includes('mp4');
-  finish(new Blob(chunks, { type }), 'video-masquee.' + (mp4 ? 'mp4' : 'webm'), `Fichier ${mp4 ? 'MP4' : 'WebM'}${audioDest ? ', avec le son' : ', sans le son'}`);
+  const made = new Blob(chunks, { type });
+  finish(mp4 ? await scrubMp4Dates(made) : made, 'video-masquee.' + (mp4 ? 'mp4' : 'webm'), `Fichier ${mp4 ? 'MP4' : 'WebM'}${audioDest ? ', avec le son' : ', sans le son'}`);
 }
 
 $('export').onclick = () => (isPhoto() ? exportPhoto() : exportVideo());
