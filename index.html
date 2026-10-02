@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0c0c0d">
+<meta name="description" content="Masque les visages d'une vidéo ou d'une photo avec un carré plein, directement sur ton téléphone. Rien n'est envoyé sur internet.">
+<title>skred · masque les visages avant de poster</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20fill=%22%230c0c0d%22/%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2220%22%20height=%2220%22%20fill=%22%23000%22%20stroke=%22%23f3f1ea%22%20stroke-width=%223%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <span class="logo" aria-hidden="true"></span>
+    <span class="brand">skred</span>
+  </header>
+
+  <!-- Accueil -->
+  <section id="s-home" class="step">
+    <h1>Masque les visages avant de poster ta vidéo ou ta photo.</h1>
+    <p class="lead">Un carré plein sur chaque visage. Tout se passe sur ton téléphone : rien n'est envoyé nulle part.</p>
+
+    <label class="btn primary" id="pickLabel" aria-disabled="true">
+      <input type="file" id="file" accept="video/*,image/*" disabled>
+      <span id="pickText">Chargement de l'outil…</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="fast">
+      <span>Vidéo : aller plus vite, au risque de rater les très petits visages loin au fond</span>
+    </label>
+    <p id="homeError" class="error" hidden></p>
+
+    <ul class="facts">
+      <li><strong>Pourquoi pas un flou ?</strong> Un flou ou une mosaïque peuvent être défaits par une IA. Sous un carré plein, il n'y a plus d'image : rien à retrouver.</li>
+      <li><strong>Ce que le masque ne cache pas.</strong> Le masque cache les visages, pas les vêtements, les tatouages, la voix ni le lieu.</li>
+      <li><strong>Pas de protection totale.</strong> L'outil peut rater un visage. Tu vérifies toujours toi-même avant de poster.</li>
+      <li><strong>Rien n'est envoyé.</strong> Pas de compte, pas de pub, pas de pisteur. Une fois la page chargée, tu peux couper internet (mode avion) : l'outil marche pareil.</li>
+    </ul>
+  </section>
+
+  <!-- Image commune aux étapes analyse, vérification, création -->
+  <div id="stage" class="stage" hidden>
+    <canvas id="view"></canvas>
+  </div>
+
+  <!-- Analyse -->
+  <section id="s-scan" class="step" hidden>
+    <h2>Recherche des visages…</h2>
+    <div class="bar"><div id="scanBar"></div></div>
+    <p id="scanText" class="muted">Préparation…</p>
+    <p class="muted">Chaque image est regardée, une par une. Garde cette page ouverte.</p>
+    <button class="btn ghost" id="scanCancel" type="button">Annuler</button>
+  </section>
+
+  <!-- Vérification -->
+  <section id="s-review" class="step" hidden>
+    <p class="notice">Vérifie chaque passage : si un visage a été raté, touche-le sur l'image pour ajouter un masque.</p>
+    <p class="muted">Un masque posé à tort ? Touche-le pour le retirer.</p>
+
+    <div class="scrub videoOnly">
+      <input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo">
+      <div class="scrubRow">
+        <button class="btn small" id="prev" type="button">◀ image</button>
+        <button class="btn small" id="play" type="button">Lecture</button>
+        <button class="btn small" id="next" type="button">image ▶</button>
+      </div>
+      <p id="timeText" class="muted center">0,0 s</p>
+    </div>
+
+    <div id="manualPanel" class="panel" hidden>
+      <h3 id="manualTitle">Masque ajouté</h3>
+      <p class="muted">Fais-le glisser sur l'image pour le déplacer.</p>
+      <label class="field">Taille
+        <input type="range" id="mSize" min="0.05" max="0.8" step="0.01">
+      </label>
+      <label class="field videoOnly">Début : <span id="mStartText"></span>
+        <input type="range" id="mStart" min="0" step="0.05">
+      </label>
+      <label class="field videoOnly">Fin : <span id="mEndText"></span>
+        <input type="range" id="mEnd" min="0" step="0.05">
+      </label>
+      <div class="row">
+        <button class="btn small videoOnly" id="mAll" type="button">Toute la vidéo</button>
+        <button class="btn small" id="mDone" type="button">OK</button>
+        <button class="btn small danger" id="mDelete" type="button">Supprimer</button>
+      </div>
+    </div>
+    <div id="autoPanel" class="panel" hidden>
+      <h3>Masque automatique</h3>
+      <p class="muted">Ne le retire que s'il ne cache pas un visage. S'il revient plus loin dans la vidéo, retire-le à nouveau.</p>
+      <div class="row">
+        <button class="btn small danger" id="aToggle" type="button">Retirer ce masque</button>
+        <button class="btn small" id="aDone" type="button">OK</button>
+      </div>
+    </div>
+    <button class="btn small" id="restoreAll" type="button" hidden></button>
+    <div id="manualList" class="chips"></div>
+
+    <div class="panel">
+      <h3>Masque</h3>
+      <div class="row" id="styles">
+        <button class="btn small on" type="button" data-style="noir">Carré noir</button>
+        <button class="btn small" type="button" data-style="emoji" data-emoji="😶">😶</button>
+        <button class="btn small" type="button" data-style="emoji" data-emoji="💀">💀</button>
+        <button class="btn small" type="button" data-style="emoji" data-emoji="🐸">🐸</button>
+      </div>
+      <label class="check videoOnly">
+        <input type="checkbox" id="audio" checked>
+        <span>Garder le son</span>
+      </label>
+      <p class="muted videoOnly">La voix aussi permet de reconnaître quelqu'un. Décoche la case pour couper le son.</p>
+    </div>
+
+    <button class="btn primary" id="export" type="button">Créer la vidéo masquée</button>
+    <p class="muted">Le fichier est entièrement refait. Le lieu, la date et le modèle du téléphone enregistrés dans le fichier d'origine disparaissent.</p>
+    <button class="btn ghost" id="restart1" type="button">Choisir un autre fichier</button>
+  </section>
+
+  <!-- Création -->
+  <section id="s-export" class="step" hidden>
+    <h2>Création de la vidéo…</h2>
+    <div class="bar"><div id="exportBar"></div></div>
+    <p id="exportText" class="muted"></p>
+    <p class="muted">Ça dure aussi longtemps que la vidéo. Garde cette page ouverte et à l'écran.</p>
+    <button class="btn ghost" id="exportCancel" type="button">Annuler</button>
+  </section>
+
+  <!-- Résultat -->
+  <section id="s-done" class="step" hidden>
+    <h2 id="doneTitle">Ta vidéo est prête.</h2>
+    <video id="result" controls playsinline></video>
+    <img id="resultImg" alt="Photo masquée" hidden>
+    <p class="notice" id="doneCheck">Regarde-la en entier avant de la poster. Si un visage apparaît, reviens corriger les masques.</p>
+    <a class="btn primary" id="download">Télécharger la vidéo</a>
+    <button class="btn" id="share" type="button" hidden>Enregistrer ou partager</button>
+    <p id="doneInfo" class="muted"></p>
+    <p class="muted">C'est un nouveau fichier : le lieu, la date et le modèle du téléphone du fichier d'origine n'y sont plus.</p>
+    <p class="muted">Le masque cache les visages, pas les vêtements, les tatouages, la voix ni le lieu.</p>
+    <button class="btn" id="back" type="button">Corriger les masques</button>
+    <button class="btn ghost" id="restart2" type="button">Choisir un autre fichier</button>
+  </section>
+
+  <p id="fatal" class="error" hidden></p>
+
+  <footer>
+    <p>Outil gratuit, sans compte. Tes vidéos et tes photos ne quittent pas ton téléphone.</p>
+  </footer>
+</main>
+
+<video id="src" class="src" playsinline muted preload="auto"></video>
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+.vercel
+# Dans test/, seuls les scripts sont suivis : jamais de vidéos ni de photos de vraies personnes.
+test/*
+!test/run-test.mjs
+!test/make-test-video.py
