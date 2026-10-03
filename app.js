@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.7';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.8';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -50,6 +50,8 @@ const S = {
   keepAudio: true,
   job: null,        // tâche en cours (analyse ou création), annulable
   playing: false,
+  file: null,       // fichier d'origine, relu directement par l'export rapide
+  fast: false,      // export rapide possible (WebCodecs) : sinon, enregistrement à vitesse normale
   srcUrl: null,
   resultUrl: null,
   resultFile: null,
@@ -131,6 +133,33 @@ async function localRunner() {
   };
 }
 
+// Export rapide : la bibliothèque Mediabunny (servie par le site) lit le fichier d'origine image par image
+// et réécrit un MP4 avec l'encodeur du téléphone (WebCodecs), sans attendre que la vidéo défile.
+// Elle est chargée dès le départ, pour qu'aucune requête ne parte une fois le fichier choisi.
+let MB = null;
+async function loadFastExport() {
+  if (new URLSearchParams(location.search).has('lent')) return;
+  if (!('VideoEncoder' in window) || !('VideoDecoder' in window)) return;
+  try {
+    MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
+    S.fast = await MB.canEncode('avc');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// Copie du site sur le téléphone (sw.js), pour marcher sans réseau. On attend qu'elle soit finie avant
+// d'autoriser le choix d'un fichier : ainsi, plus aucune requête ne part une fois le fichier choisi.
+async function keepOffline() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('sw.js');
+    await Promise.race([navigator.serviceWorker.ready, sleep(15000)]);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
 async function init() {
   try {
     const cores = navigator.hardwareConcurrency || 2;
@@ -139,6 +168,8 @@ async function init() {
     const workers = noWorkers ? [] : (await Promise.all(Array.from({ length: wanted }, startWorker))).filter(Boolean);
     S.runners = workers.length ? workers : [await localRunner()];
     S.parallel = workers.length;
+    await loadFastExport();
+    await keepOffline();
     $('file').disabled = false;
     $('pickLabel').removeAttribute('aria-disabled');
     $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
@@ -209,6 +240,7 @@ async function loadFile(file) {
   resetAll();
   $('homeError').hidden = true;
   S.kind = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name) ? 'photo' : 'video';
+  S.file = file;
   S.srcUrl = URL.createObjectURL(file);
   let w, h;
   try {
@@ -857,9 +889,83 @@ function pickMime() {
   return list.find((m) => MediaRecorder.isTypeSupported(m)) || null;
 }
 
+// Export rapide. Renvoie false s'il n'a pas pu aller au bout : l'export suivant se fera par enregistrement.
+async function exportFast() {
+  const job = { cancelled: false };
+  S.job = job;
+  $('fatal').hidden = true;
+  show('export');
+  $('exportBar').style.width = '0';
+  $('exportPct').textContent = '0%';
+  $('exportText').textContent = '';
+  await keepAwake(true);
+
+  let made = null, audioKept = false, input = null;
+  try {
+    input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
+    const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
+    const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S.W, S.H) : Object.assign(document.createElement('canvas'), { width: S.W, height: S.H });
+    const ctx = canvas.getContext('2d');
+    const conversion = await MB.Conversion.init({
+      input,
+      output,
+      video: {
+        // L'image est toujours refaite, redressée et masquée : celle d'origine n'est jamais recopiée telle quelle.
+        forceTranscode: true,
+        allowTransformationMetadata: false,
+        width: S.W,
+        height: S.H,
+        fit: 'fill',
+        codec: 'avc',
+        bitrate: clamp(S.W * S.H * 4, 2_500_000, 10_000_000),
+        process: (sample) => {
+          sample.draw(ctx, 0, 0, S.W, S.H);
+          paint(ctx, sample.timestamp, false);
+          return canvas;
+        },
+        processedWidth: S.W,
+        processedHeight: S.H,
+      },
+      audio: { discard: !S.keepAudio },
+      tags: {},   // rien du fichier d'origine (lieu, date, modèle du téléphone) n'est repris
+      showWarnings: false,
+    });
+    const kept = conversion.utilizedTracks;
+    if (!conversion.isValid || kept.filter((t) => t.type === 'video').length !== 1) throw new Error('vidéo non prise en charge');
+    audioKept = kept.some((t) => t.type === 'audio');
+    conversion.onProgress = (p) => {
+      const pct = Math.floor(clamp(p * 100, 0, 100));
+      $('exportBar').style.width = pct + '%';
+      $('exportPct').textContent = pct + '%';
+    };
+    job.cancel = () => conversion.cancel();
+    await conversion.execute();
+    made = new Blob([output.target.buffer], { type: 'video/mp4' });
+  } catch (e) {
+    if (!job.cancelled) console.error(e);
+  }
+  if (input) try { input.dispose(); } catch { /* déjà libéré */ }
+  S.job = null;
+  await keepAwake(false);
+
+  if (job.cancelled) { openReview(0); return true; }
+  if (!made || !made.size) return false;
+  const sound = audioKept ? 'avec le son' : S.keepAudio ? "sans le son (il n'a pas pu être repris)" : 'sans le son';
+  finish(await scrubMp4Dates(made), 'video-masquee.mp4', `Fichier MP4, ${sound}, export rapide`);
+  return true;
+}
+
 async function exportVideo() {
   stopPlay();
   S.sel = null;
+  if (S.fast) {
+    if (await exportFast()) return;
+    // L'enregistrement doit démarrer juste après un appui sur le bouton (pour le son sur iPhone) : on redemande.
+    S.fast = false;
+    openReview(0);
+    fail($('fatal'), "L'export rapide n'a pas marché ici. Touche Exporter à nouveau : la vidéo sera créée à vitesse normale.");
+    return;
+  }
   const mime = pickMime();
   if (!mime || !view.captureStream) {
     fail($('fatal'), "Ce navigateur ne sait pas créer de vidéo. Essaie avec Chrome ou Safari à jour.");
@@ -996,7 +1102,7 @@ function resetAll() {
   $('resultImg').removeAttribute('src');
   if (S.srcUrl) URL.revokeObjectURL(S.srcUrl);
   if (S.resultUrl) URL.revokeObjectURL(S.resultUrl);
-  S.srcUrl = S.resultUrl = S.resultFile = S.img = null;
+  S.srcUrl = S.resultUrl = S.resultFile = S.img = S.file = null;
   S.tracks = [];
   S.frames = [];
   S.raw = [];

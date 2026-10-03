@@ -1,0 +1,16 @@
+{
+  "name": "skred · masque les visages",
+  "short_name": "skred",
+  "description": "Masque les visages d'une vidéo ou d'une photo, directement sur ton téléphone. Rien n'est envoyé sur internet.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#efede6",
+  "theme_color": "#efede6",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -27,7 +27,13 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 - Détection des visages : modèle YuNet (OpenCV), exécuté par ONNX Runtime Web (`detector.js`, `detect-worker.js`),
   sur plusieurs cœurs en parallèle.
 - Suivi : une seule case par visage d'une image à l'autre, agrandie de 30 %, prolongée de quelques images avant et après.
-- Export : enregistrement de l'image masquée (canvas + MediaRecorder), ou JPEG pour une photo.
+- Export rapide : le fichier d'origine est relu image par image, chaque image est masquée puis réencodée
+  par l'encodeur du téléphone (WebCodecs, via Mediabunny). Plus rapide que la durée de la vidéo.
+- Export de secours, si le navigateur ne sait pas faire l'export rapide : enregistrement de l'image masquée
+  pendant qu'elle défile (canvas + MediaRecorder). `?lent` dans l'adresse force ce mode.
+- Photo : JPEG.
+- Installable sur l'écran d'accueil (`manifest.webmanifest`) et utilisable sans réseau : `sw.js` garde une copie
+  des fichiers du site sur le téléphone. Avec du réseau, c'est toujours la version en ligne qui est servie.
 - Tout est servi par le site lui-même, et une politique de sécurité (`vercel.json`) interdit au navigateur
   toute connexion vers un autre site.
 
@@ -52,7 +58,8 @@ et qu'aucune requête n'est partie après le chargement de la page.
 
 ## Limites connues
 
-- L'export dure aussi longtemps que la vidéo.
+- Avec l'export de secours, l'export dure aussi longtemps que la vidéo.
+- L'export rapide n'a été testé que sur Chrome pour ordinateur.
 - L'analyse est lente sur les longues vidéos.
 - Testé sur Chrome pour ordinateur. Les tests sur Android et iPhone sont en cours.
 
@@ -60,3 +67,4 @@ et qu'aucune requête n'est partie après le chargement de la page.
 
 - [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), licence MIT (`models/`).
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), licence MIT (`vendor/ort/`).
+- [Mediabunny](https://github.com/Vanilagy/mediabunny), licence MPL-2.0 (`vendor/mediabunny/`).
