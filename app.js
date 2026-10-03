@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.8';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.9';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -160,6 +160,20 @@ async function keepOffline() {
   }
 }
 
+// Fichier partagé depuis la galerie (Android, application installée) : sw.js l'a reçu et nous le remet.
+async function sharedFile() {
+  if (!new URLSearchParams(location.search).has('partage')) return null;
+  history.replaceState(null, '', location.pathname);
+  const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (!sw) return null;
+  return new Promise((resolve) => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => resolve(e.data instanceof File ? e.data : null);
+    sw.postMessage({ type: 'partage' }, [ch.port2]);
+    setTimeout(() => resolve(null), 3000);
+  });
+}
+
 async function init() {
   try {
     const cores = navigator.hardwareConcurrency || 2;
@@ -174,6 +188,8 @@ async function init() {
     $('pickLabel').removeAttribute('aria-disabled');
     $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
     $('footNote').textContent = matchMedia('(pointer: fine)').matches ? 'Rien ne quitte ton ordinateur.' : 'Rien ne quitte ton téléphone.';
+    const file = await sharedFile();
+    if (file) loadFile(file);
   } catch (e) {
     console.error(e);
     $('pickText').textContent = 'Outil indisponible';

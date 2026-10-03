@@ -33,7 +33,30 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(self.clients.claim());
 });
 
+// Partage depuis la galerie (Android) : le téléphone remet le fichier ici. Il est gardé en mémoire, jamais
+// écrit ni envoyé ailleurs, puis donné à la page quand elle le demande.
+const SHARE = new URL('share', self.registration.scope).href;
+let shared = null;
+
+self.addEventListener('message', (e) => {
+  if (!e.data || e.data.type !== 'partage' || !e.ports[0]) return;
+  e.ports[0].postMessage(shared);
+  shared = null;
+});
+
 self.addEventListener('fetch', (e) => {
+  if (e.request.method === 'POST' && e.request.url.split('?')[0] === SHARE) {
+    e.respondWith((async () => {
+      try {
+        const file = (await e.request.formData()).get('file');
+        shared = file instanceof File ? file : null;
+      } catch {
+        shared = null;
+      }
+      return Response.redirect('./?partage', 303);
+    })());
+    return;
+  }
   const url = new URL(e.request.url);
   url.search = '';
   url.hash = '';
