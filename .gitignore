@@ -7,3 +7,6 @@ test/*
 
 .vercel
 .env*
+
+# Vidéo du réel : refaite par node reel/render.mjs
+reel/*.mp4
