@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.9';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.10';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -860,6 +860,8 @@ function finish(blob, name, info) {
   $('doneCheck').textContent = isPhoto() ? 'Regarde-la de près avant de poster.' : 'Regarde-la en entier avant de poster.';
   $('doneInfo').textContent = `${info}, ${(blob.size / 1e6).toFixed(1).replace('.', ',')} Mo.`;
   show('done');
+  // Le téléchargement part tout seul. Le bouton reste là si le navigateur l'a bloqué, ou pour recommencer.
+  $('download').click();
 }
 
 async function exportPhoto() {
