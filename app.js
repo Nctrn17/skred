@@ -21,7 +21,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-03.10';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-03.11';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -875,7 +875,7 @@ async function exportPhoto() {
 }
 
 // Le navigateur écrit dans un fichier MP4 la date et l'heure de sa création. On les remet à zéro :
-// le fichier produit ne dit plus quand il a été fait.
+// le fichier produit ne dit plus quand il a été fait. On efface aussi le nom du logiciel qui l'a écrit.
 async function scrubMp4Dates(blob) {
   const head = new Uint8Array(await blob.slice(0, 1 << 20).arrayBuffer());
   const view = new DataView(head.buffer);
@@ -885,8 +885,10 @@ async function scrubMp4Dates(blob) {
       const size = view.getUint32(p);
       if (size < 8 || p + size > end) return;   // boîte coupée ou de forme inattendue : on n'y touche pas
       const t = type(p);
-      if (t === 'moov' || t === 'trak' || t === 'mdia') walk(p + 8, p + size);
+      if (t === 'moov' || t === 'trak' || t === 'mdia' || t === 'minf' || t === 'stbl') walk(p + 8, p + size);
       else if (t === 'mvhd' || t === 'tkhd' || t === 'mdhd') head.fill(0, p + 12, p + 12 + (head[p + 8] === 1 ? 16 : 8));
+      else if (t === 'hdlr') head.fill(0, p + 32, p + size);   // nom donné à la piste par le logiciel
+      else if (t === 'stsd' && size >= 16 + 82 && /^(avc|hvc|hev|vp0|av0)/.test(type(p + 16))) head.fill(0, p + 16 + 50, p + 16 + 82);   // nom de l'encodeur
       p += size;
     }
   };

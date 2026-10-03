@@ -59,9 +59,8 @@ et qu'aucune requête n'est partie après le chargement de la page.
 ## Limites connues
 
 - Avec l'export de secours, l'export dure aussi longtemps que la vidéo.
-- L'export rapide n'a été testé que sur Chrome pour ordinateur.
 - L'analyse est lente sur les longues vidéos.
-- Testé sur Chrome pour ordinateur. Les tests sur Android et iPhone sont en cours.
+- Test automatique sur Chrome pour ordinateur. Essayé à la main sur Android et sur iPhone.
 
 ## Composants tiers
 

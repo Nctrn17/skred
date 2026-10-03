@@ -86,7 +86,7 @@ out.export = await run(`${TRUTH} const S = window.skred.S; const v = document.ge
   const best = bad.reduce((a, b) => (b.reduce((p, q) => p + q, 0) < a.reduce((p, q) => p + q, 0) ? b : a));
   const txt = await S.resultFile.text();
   return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, visagesVisibles: best,
-    metadonnees: ['Lavf', '48.8566', 'TestPhone'].filter(k => txt.includes(k)), datesDansLeFichier: await (async () => {
+    metadonnees: ['Lavf', '48.8566', 'TestPhone', 'Mediabunny'].filter(k => txt.includes(k)), datesDansLeFichier: await (async () => {
       // Date de création écrite dans chaque en-tête du MP4 : doit valoir 0 partout.
       const h = new Uint8Array(await S.resultFile.slice(0, 1 << 20).arrayBuffer()); const found = [];
       for (let p = 4; p + 12 < h.length; p++) { const k = String.fromCharCode(h[p], h[p + 1], h[p + 2], h[p + 3]);
@@ -94,11 +94,17 @@ out.export = await run(`${TRUTH} const S = window.skred.S; const v = document.ge
       return found; })() };`);
 
 if (save) {
-  const b64 = await run(`const buf = new Uint8Array(await window.skred.S.resultFile.arrayBuffer()); let s = ''; for (let i = 0; i < buf.length; i += 32768) s += String.fromCharCode(...buf.subarray(i, i + 32768)); return btoa(s);`);
+  // Le fichier est rapatrié par morceaux de 1 Mo : un seul gros message ne passe pas.
+  const size = await run(`return window.skred.S.resultFile.size;`);
+  const parts = [];
+  for (let o = 0; o < size; o += 1 << 20) {
+    const b64 = await run(`const buf = new Uint8Array(await window.skred.S.resultFile.slice(${o}, ${o} + (1 << 20)).arrayBuffer()); let s = ''; for (let i = 0; i < buf.length; i += 32768) s += String.fromCharCode(...buf.subarray(i, i + 32768)); return btoa(s);`);
+    parts.push(Buffer.from(b64, 'base64'));
+  }
   const { mkdirSync, writeFileSync } = await import('node:fs');
   mkdirSync(new URL('./out/', import.meta.url), { recursive: true });
   const name = file.replace(/\.\w+$/, '') + '-masque.mp4';
-  writeFileSync(new URL('./out/' + name, import.meta.url), Buffer.from(b64, 'base64'));
+  writeFileSync(new URL('./out/' + name, import.meta.url), Buffer.concat(parts));
   out.fichier = 'test/out/' + name;
 }
 out.requetesApresChargement = requests.slice(mark).filter((u) => !u.startsWith('blob:') && !u.startsWith('data:'));
