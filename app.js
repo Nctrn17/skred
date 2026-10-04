@@ -1,6 +1,6 @@
 // skred : masque les visages d'une vidéo ou d'une photo, entièrement dans le navigateur.
 // Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans vercel.json).
-import { createDetector, detectBoth } from './detector.js';
+import { createDetector, detectBoth, neededScore } from './detector.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -11,6 +11,11 @@ const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop mas
 // (0,5 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
 // visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
 const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.65, LOW_SCORE = 0.5;
+const RULE = { min: MIN_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
+// La passe sur l'image réduite double presque le temps d'analyse. Pour rattraper les gros plans ratés, elle n'est faite
+// qu'une image sur 3 : un masque déborde déjà de 4 images avant et après chaque visage, il reste donc posé sans trou.
+// Elle est faite en plus sur toute image où un grand cadre attend sa confirmation (voir detectBoth).
+const LOW_EVERY = 3;
 const GROW = 1.3;             // chaque case est agrandie de 30 % autour du visage
 const ANALYSIS_FPS = 30;      // images regardées par seconde de vidéo
 const HOLD_FRAMES = 4;        // chaque masque commence 4 images avant et finit 4 images après le visage
@@ -27,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-04.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -78,7 +83,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const secs = (t) => t.toFixed(1).replace('.', ',') + ' s';
 const isPhoto = () => S.kind === 'photo';
-const needed = (d) => MIN_SCORE + (BIG_SCORE - MIN_SCORE) * clamp((d.w / Math.min(S.W, S.H) - BIG_FROM) / (BIG_TO - BIG_FROM), 0, 1);
+const needed = (d) => neededScore(d, Math.min(S.W, S.H), RULE);
 const isSure = (d) => d.sure;
 function iou(a, b) {
   const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
@@ -127,10 +132,10 @@ function startWorker() {
     let nextId = 1;
     const giveUp = setTimeout(() => { w.terminate(); resolve(null); }, 20000);
     const runner = {
-      detect: (bitmap, maxSide) => new Promise((ok, ko) => {
+      detect: (bitmap, maxSide, always) => new Promise((ok, ko) => {
         const id = nextId++;
         pending.set(id, { ok, ko });
-        w.postMessage({ type: 'detect', id, bitmap, w: bitmap.width, h: bitmap.height, maxSide, minScore: KEEP_SCORE }, [bitmap]);
+        w.postMessage({ type: 'detect', id, bitmap, w: bitmap.width, h: bitmap.height, maxSide, minScore: KEEP_SCORE, always, rule: RULE }, [bitmap]);
       }),
     };
     w.onmessage = (e) => {
@@ -150,8 +155,8 @@ function startWorker() {
 async function localRunner() {
   const detect = await createDetector(new URL('.', location.href).href);
   return {
-    detect: async (bitmap, maxSide) => {
-      const boxes = await detectBoth(detect, bitmap, bitmap.width, bitmap.height, maxSide, KEEP_SCORE);
+    detect: async (bitmap, maxSide, always) => {
+      const boxes = await detectBoth(detect, bitmap, bitmap.width, bitmap.height, maxSide, KEEP_SCORE, always, RULE);
       bitmap.close();
       return boxes;
     },
@@ -358,7 +363,7 @@ async function scan() {
   const free = [...S.runners], waiting = [];
   const acquire = () => (free.length ? Promise.resolve(free.pop()) : new Promise((r) => waiting.push(r)));
   const tasks = [];
-  let done = 0, error = null, onRelease = null;
+  let done = 0, error = null, onRelease = null, sent = 0;
   const release = (r) => { if (waiting.length) waiting.shift()(r); else free.push(r); if (onRelease) onRelease(); };
 
   const progress = () => {
@@ -382,7 +387,8 @@ async function scan() {
     if (job.cancelled || error) { release(runner); return; }
     const bitmap = await createImageBitmap(canvas);
     const t0 = performance.now();
-    tasks.push(runner.detect(bitmap, side).then((found) => {
+    const always = isPhoto() || sent++ % LOW_EVERY === 0;   // compté par image envoyée, pas par numéro d'image
+    tasks.push(runner.detect(bitmap, side, always).then((found) => {
       const boxes = judge(found);
       S.detectMs += performance.now() - t0;
       S.detectCount++;
