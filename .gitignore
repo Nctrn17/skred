@@ -13,3 +13,4 @@ reel/*.mp4
 
 # Dossier publié, refait par node build.mjs
 dist/
+.wrangler/

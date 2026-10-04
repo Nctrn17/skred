@@ -1,4 +1,4 @@
-# En-têtes envoyés par Cloudflare Pages avec chaque fichier. La politique de sécurité interdit au navigateur
+# En-têtes envoyés par Cloudflare avec chaque fichier. La politique de sécurité interdit au navigateur
 # toute connexion vers un autre site. Le serveur local (dev-server.mjs) relit ce fichier.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'

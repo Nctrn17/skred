@@ -1,0 +1,11 @@
+// Mise en ligne sur Cloudflare (Workers, fichiers statiques seulement : aucun code ne tourne côté serveur).
+// Publier : node build.mjs puis npx wrangler deploy
+{
+  "name": "skred",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist"
+  },
+  "workers_dev": true,
+  "preview_urls": false
+}

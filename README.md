@@ -39,8 +39,12 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 
 ## Mettre en ligne
 
-Hébergé sur Cloudflare Pages, relié au dépôt GitHub : chaque envoi sur `main` est publié.
-Commande de construction : `node build.mjs`. Dossier publié : `dist`.
+Hébergé sur Cloudflare (Workers, fichiers statiques seulement, réglages dans `wrangler.jsonc`) :
+
+```bash
+node build.mjs
+npx wrangler deploy
+```
 
 ## Lancer en local
 

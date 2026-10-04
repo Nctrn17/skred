@@ -1,4 +1,4 @@
-// Prépare le dossier dist/ publié par Cloudflare Pages : seulement les fichiers du site, rien d'autre
+// Prépare le dossier dist/ publié sur Cloudflare : seulement les fichiers du site, rien d'autre
 // (ni les tests, ni le réel, ni ce script). La liste vient de sw.js, qui garde déjà ces fichiers hors ligne.
 // Usage : node build.mjs
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
