@@ -1,6 +1,13 @@
-# En-têtes envoyés par Cloudflare avec chaque fichier. La politique de sécurité interdit au navigateur
-# toute connexion vers un autre site. Le serveur local (dev-server.mjs) relit ce fichier.
+# En-têtes envoyés par Cloudflare avec chaque fichier. Le serveur local (dev-server.mjs) relit la politique de sécurité.
+# - Content-Security-Policy : le navigateur n'a le droit de se connecter qu'au site lui-même, et skred ne peut pas être
+#   affiché dans un cadre sur un autre site (frame-ancestors, X-Frame-Options).
+# - Strict-Transport-Security : après une première visite, le navigateur n'utilise plus que HTTPS pour skred.fr.
+# - Permissions-Policy : ni caméra, ni micro, ni position, ni paiement ; seul le maintien de l'écran allumé reste permis.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=(), display-capture=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
