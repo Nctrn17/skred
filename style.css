@@ -305,9 +305,10 @@ button { font: inherit; color: inherit; }
   .screen { padding: 28px 48px 36px; }
   .ink { padding: 0; }
   .brand { font-size: 22px; }
-  #s-home .middle { flex-direction: row; align-items: center; gap: 56px; }
-  #s-home .title { flex: 1; font-size: clamp(92px, 14vw, 184px); line-height: 0.82; }
-  #s-home .square { width: min(480px, 40vw); padding: 28px; }
+  /* Titre et carré côte à côte, au centre, à la même hauteur : un mot par ligne, le carré donne la taille. */
+  #s-home .middle { --s: min(34vw, 62vh, 760px); flex-direction: row; align-items: center; justify-content: center; gap: clamp(40px, 5vw, 96px); }
+  #s-home .title { flex: none; width: min-content; font-size: calc(var(--s) * 0.42); line-height: 0.82; }
+  #s-home .square { width: var(--s); padding: calc(var(--s) * 0.06); }
   #s-home .plus { font-size: 88px; }
   #s-home .pickText { font-size: 24px; line-height: 1.25; }
   .foot { font-size: 12px; }
