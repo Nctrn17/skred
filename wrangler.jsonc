@@ -6,6 +6,11 @@
   "assets": {
     "directory": "./dist"
   },
-  "workers_dev": true,
+  "routes": [
+    { "pattern": "skred.fr", "custom_domain": true },
+    { "pattern": "www.skred.fr", "custom_domain": true }
+  ],
+  // L'adresse en .workers.dev contient le nom du compte : coupée.
+  "workers_dev": false,
   "preview_urls": false
 }

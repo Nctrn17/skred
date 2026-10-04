@@ -39,7 +39,10 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 
 ## Mettre en ligne
 
-Hébergé sur Cloudflare (Workers, fichiers statiques seulement, réglages dans `wrangler.jsonc`) :
+Adresse : https://skred.fr. Hébergé sur Cloudflare (Workers, fichiers statiques seulement, réglages dans `wrangler.jsonc`).
+L'ancienne adresse skred.vercel.app redirige vers skred.fr (`vercel.json`).
+
+Publier :
 
 ```bash
 node build.mjs
