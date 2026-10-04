@@ -79,3 +79,9 @@ et qu'aucune requête n'est partie après le chargement de la page.
 - [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), licence MIT (`models/`).
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), licence MIT (`vendor/ort/`).
 - [Mediabunny](https://github.com/Vanilagy/mediabunny), licence MPL-2.0 (`vendor/mediabunny/`).
+- Polices Archivo et JetBrains Mono, licence SIL OFL 1.1 (`vendor/fonts/`).
+
+## Licence
+
+Code sous licence [AGPL-3.0](LICENSE). Tu peux le copier, le modifier et le mettre en ligne,
+à condition de publier le code de ta version sous la même licence, y compris si elle n'est servie que sur un site.
