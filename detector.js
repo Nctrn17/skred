@@ -12,6 +12,16 @@ function overlap(a, b) {
   return inter / (a.w * a.h + b.w * b.h - inter);
 }
 
+// Seconde passe sur l'image réduite au tiers. Un gros plan y redevient un visage de taille ordinaire, que le modèle
+// reconnaît bien ; un faux visage vu dans le bruit de la nuit, lui, y disparaît le plus souvent.
+// Les cadres trouvés là sont marqués { lo: true } : app.js s'en sert pour confirmer ou écarter les grands cadres.
+export const LOW_FACTOR = 3;
+export async function detectBoth(detect, source, sw, sh, maxSide, minScore) {
+  const boxes = await detect(source, sw, sh, maxSide, minScore);
+  const low = await detect(source, sw, sh, Math.round(Math.min(maxSide, Math.max(sw, sh)) / LOW_FACTOR), minScore);
+  return boxes.concat(low.map((b) => ({ ...b, lo: true })));
+}
+
 export async function createDetector(base) {
   ort.env.wasm.wasmPaths = base + 'vendor/ort/';
   ort.env.wasm.numThreads = 1;

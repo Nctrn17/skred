@@ -1,6 +1,6 @@
 // Recherche des visages dans un fil d'exécution à part, pour utiliser plusieurs cœurs du téléphone.
 // Tout reste dans le navigateur : ce fichier ne fait aucune requête en dehors du site.
-import { createDetector } from './detector.js';
+import { createDetector, detectBoth } from './detector.js';
 
 let detect = null;
 
@@ -13,7 +13,7 @@ self.onmessage = async (e) => {
       await detect(new OffscreenCanvas(64, 64), 64, 64, 64, 0.5);
       self.postMessage({ type: 'ready' });
     } else if (m.type === 'detect') {
-      const boxes = await detect(m.bitmap, m.w, m.h, m.maxSide, m.minScore);
+      const boxes = await detectBoth(detect, m.bitmap, m.w, m.h, m.maxSide, m.minScore);
       m.bitmap.close();
       self.postMessage({ type: 'done', id: m.id, boxes });
     }

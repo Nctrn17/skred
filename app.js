@@ -1,14 +1,16 @@
 // skred : masque les visages d'une vidéo ou d'une photo, entièrement dans le navigateur.
 // Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans vercel.json).
-import { createDetector } from './detector.js';
+import { createDetector, detectBoth } from './detector.js';
 
 const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
-// Un visage qui occupe une grande part de l'image est net, et le détecteur le reconnaît presque toujours avec certitude.
-// La nuit, il croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue :
-// plus un cadre est grand, plus on exige de certitude (0,3 jusqu'à 12 % du petit côté de l'image, 0,65 à partir de 25 %).
-const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.65;
+// La nuit, le détecteur croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue.
+// Un grand cadre (plus de 12 % du petit côté de l'image) doit donc être soit très sûr (jusqu'à 0,65 à partir de 25 %),
+// soit retrouvé sur l'image réduite au tiers (voir detectBoth). Et un gros plan bien reconnu sur l'image réduite
+// (0,5 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
+// visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
+const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.65, LOW_SCORE = 0.5;
 const GROW = 1.3;             // chaque case est agrandie de 30 % autour du visage
 const ANALYSIS_FPS = 30;      // images regardées par seconde de vidéo
 const HOLD_FRAMES = 4;        // chaque masque commence 4 images avant et finit 4 images après le visage
@@ -25,7 +27,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-04.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-04.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -73,7 +75,20 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const secs = (t) => t.toFixed(1).replace('.', ',') + ' s';
 const isPhoto = () => S.kind === 'photo';
 const needed = (d) => MIN_SCORE + (BIG_SCORE - MIN_SCORE) * clamp((d.w / Math.min(S.W, S.H) - BIG_FROM) / (BIG_TO - BIG_FROM), 0, 1);
-const isSure = (d) => d.s >= needed(d);
+const isSure = (d) => d.sure;
+function iou(a, b) {
+  const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return ix * iy / (a.w * a.h + b.w * b.h - ix * iy);
+}
+// Décide quels cadres d'une image sont assez sûrs pour ouvrir un masque, avec l'aide de la seconde passe.
+function judge(boxes) {
+  const full = boxes.filter((b) => !b.lo), low = boxes.filter((b) => b.lo);
+  for (const d of full) d.sure = d.s >= needed(d) || (d.s >= MIN_SCORE && low.some((l) => iou(d, l) > 0.3));
+  const extra = low.filter((l) => l.s >= LOW_SCORE && l.w / Math.min(S.W, S.H) >= BIG_FROM && !full.some((d) => d.sure && iou(d, l) > 0.3));
+  for (const l of extra) l.sure = true;
+  return full.concat(extra);
+}
 
 /* ---------- Écrans ---------- */
 
@@ -132,7 +147,7 @@ async function localRunner() {
   const detect = await createDetector(new URL('.', location.href).href);
   return {
     detect: async (bitmap, maxSide) => {
-      const boxes = await detect(bitmap, bitmap.width, bitmap.height, maxSide, KEEP_SCORE);
+      const boxes = await detectBoth(detect, bitmap, bitmap.width, bitmap.height, maxSide, KEEP_SCORE);
       bitmap.close();
       return boxes;
     },
@@ -348,7 +363,8 @@ async function scan() {
     if (job.cancelled || error) { release(runner); return; }
     const bitmap = await createImageBitmap(canvas);
     const t0 = performance.now();
-    tasks.push(runner.detect(bitmap, side).then((boxes) => {
+    tasks.push(runner.detect(bitmap, side).then((found) => {
+      const boxes = judge(found);
       S.detectMs += performance.now() - t0;
       S.detectCount++;
       for (let k = i; k <= j; k++) if (!results[k]) { results[k] = boxes; done++; }
