@@ -34,8 +34,13 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 - Photo : JPEG.
 - Installable sur l'écran d'accueil (`manifest.webmanifest`) et utilisable sans réseau : `sw.js` garde une copie
   des fichiers du site sur le téléphone. Avec du réseau, c'est toujours la version en ligne qui est servie.
-- Tout est servi par le site lui-même, et une politique de sécurité (`vercel.json`) interdit au navigateur
+- Tout est servi par le site lui-même, et une politique de sécurité (`_headers`) interdit au navigateur
   toute connexion vers un autre site.
+
+## Mettre en ligne
+
+Hébergé sur Cloudflare Pages, relié au dépôt GitHub : chaque envoi sur `main` est publié.
+Commande de construction : `node build.mjs`. Dossier publié : `dist`.
 
 ## Lancer en local
 

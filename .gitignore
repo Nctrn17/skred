@@ -10,3 +10,6 @@ test/*
 
 # Vidéo du réel : refaite par node reel/render.mjs
 reel/*.mp4
+
+# Dossier publié, refait par node build.mjs
+dist/

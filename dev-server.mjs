@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT) || 5173;
-const csp = JSON.parse(await readFile(new URL('vercel.json', import.meta.url), 'utf8')).headers[0].headers[0].value;
+const csp = (await readFile(new URL('_headers', import.meta.url), 'utf8')).match(/Content-Security-Policy: (.+)/)[1].trim();
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
