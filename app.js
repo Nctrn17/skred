@@ -27,7 +27,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-04.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-04.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -45,6 +45,10 @@ const S = {
   kind: 'video',    // 'video' ou 'photo'
   img: null,
   W: 0, H: 0, duration: 0, fps: 30, srcFps: 30,
+  // Horloge : partout dans l'app, t va de 0 à duration. Le fichier, lui, peut avoir une horloge qui ne démarre pas
+  // à 0 (vidéo recoupée, montée, transférée) : start est l'heure du fichier qui correspond à t = 0, et first
+  // l'instant t de sa première image. Sans ces deux valeurs, les masques tomberaient à côté des visages.
+  start: 0, first: 0,
   tracks: [],       // un suivi par visage : { id, dets: Map(image -> cadre), removed }
   frames: [],       // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
   manual: [],       // masques ajoutés à la main : [{ id, cx, cy, size, t0, t1 }]
@@ -235,6 +239,7 @@ function once(target, ok, bad, ms) {
 function seekTo(t) {
   return new Promise((resolve) => {
     let seeked = false, framed = false, finished = false;
+    const target = t;
     const fin = () => { if (!finished) { finished = true; resolve(); } };
     video.addEventListener('seeked', () => {
       seeked = true;
@@ -242,7 +247,7 @@ function seekTo(t) {
     }, { once: true });
     if (hasRVFC) video.requestVideoFrameCallback(() => { framed = true; if (seeked) fin(); });
     setTimeout(fin, 3000);
-    video.currentTime = t;
+    video.currentTime = target + S.start;
   });
 }
 
@@ -289,6 +294,7 @@ async function loadFile(file) {
     } else {
       video.src = S.srcUrl;
       await once(video, 'loadeddata', 'error', 20000);
+      S.start = Number.isFinite(video.currentTime) ? video.currentTime : 0;
       if (!Number.isFinite(video.duration)) {
         // Certains fichiers n'annoncent pas leur durée : on force le navigateur à la chercher.
         video.currentTime = 1e7;
@@ -298,6 +304,19 @@ async function loadFile(file) {
       w = video.videoWidth;
       h = video.videoHeight;
       S.duration = video.duration;
+      // L'export rapide lit le fichier lui-même : si sa fin tombe plus tard que ce qu'annonce le navigateur,
+      // on analyse jusque-là. Analyser un peu trop loin ne coûte rien, pas assez laisserait des images sans masque.
+      if (S.fast) {
+        try {
+          const input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+          const track = await input.getPrimaryVideoTrack();
+          if (track) {
+            S.duration = Math.max(S.duration, (await track.computeDuration()) - S.start);
+            S.first = Math.max(0, (await track.getFirstTimestamp()) - S.start);
+          }
+          input.dispose();
+        } catch { /* le navigateur seul fera foi */ }
+      }
     }
     if (!w || !h) throw new Error('illisible');
   } catch {
@@ -433,7 +452,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   const onFrame = (_, meta) => {
     if (stop) return;
     lastSeen = performance.now();
-    const t = meta.mediaTime;
+    const t = meta.mediaTime - S.start;
     if (t > lastTime) {
       const skipped = lastPresented >= 0 && meta.presentedFrames - lastPresented > 1;
       flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
@@ -711,7 +730,7 @@ function stopPlay() {
 }
 
 async function togglePlay() {
-  if (S.playing) { stopPlay(); S.t = video.currentTime; renderReview(); return; }
+  if (S.playing) { stopPlay(); S.t = video.currentTime - S.start; renderReview(); return; }
   S.playing = true;
   $('play').textContent = '❚❚';
   video.muted = true;
@@ -719,7 +738,7 @@ async function togglePlay() {
   try { await video.play(); } catch { stopPlay(); return; }
   const tick = () => {
     if (!S.playing) return;
-    S.t = Math.min(video.currentTime, S.duration);
+    S.t = Math.min(video.currentTime - S.start, S.duration);
     renderReview();
     if (video.ended) { stopPlay(); return; }
     requestAnimationFrame(tick);
@@ -948,6 +967,7 @@ async function exportFast() {
     const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
     const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S.W, S.H) : Object.assign(document.createElement('canvas'), { width: S.W, height: S.H });
     const ctx = canvas.getContext('2d');
+    let first = null;
     const conversion = await MB.Conversion.init({
       input,
       output,
@@ -961,8 +981,10 @@ async function exportFast() {
         codec: 'avc',
         bitrate: clamp(S.W * S.H * 4, 2_500_000, 10_000_000),
         process: (sample) => {
+          // La bibliothèque compte le temps depuis sa première image ; on le remet sur l'horloge de l'analyse.
+          if (first == null) first = sample.timestamp;
           sample.draw(ctx, 0, 0, S.W, S.H);
-          paint(ctx, sample.timestamp, false);
+          paint(ctx, sample.timestamp - first + S.first, false);
           return canvas;
         },
         processedWidth: S.W,
@@ -1073,8 +1095,8 @@ async function exportVideo() {
     $('exportPct').textContent = pct + '%';
   };
   const loop = hasRVFC
-    ? (_, meta) => { frame(meta.mediaTime); if (running) video.requestVideoFrameCallback(loop); }
-    : () => { frame(video.currentTime); if (running) requestAnimationFrame(loop); };
+    ? (_, meta) => { frame(meta.mediaTime - S.start); if (running) video.requestVideoFrameCallback(loop); }
+    : () => { frame(video.currentTime - S.start); if (running) requestAnimationFrame(loop); };
   if (hasRVFC) video.requestVideoFrameCallback(loop); else requestAnimationFrame(loop);
 
   // Si la page passe en arrière-plan, on met tout en pause pour ne pas abîmer la vidéo.
@@ -1151,6 +1173,7 @@ function resetAll() {
   S.manual = [];
   S.sel = null;
   S.t = 0;
+  S.start = S.first = 0;
   $('fatal').hidden = true;
 }
 

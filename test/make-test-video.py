@@ -32,4 +32,11 @@ subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf',
                 'eq=brightness=-0.2:gamma=0.5:saturation=1.2,noise=alls=30:allf=t,tmix=frames=3,boxblur=3:1',
                 '-c:v', 'libx264', '-crf', '20', '-c:a', 'copy', '-metadata', 'location=+48.8566+002.3522/',
                 '-metadata', 'make=TestPhone', 'test5.mp4'], check=True)
-print('test2.mp4, test3.mp4 et test5.mp4 créés')
+# Horloges piégées : la vidéo doit rester masquée même si son horloge ne démarre pas à 0 (test6),
+# si ses images ne tombent pas à intervalles réguliers (test7), ou si elle tourne à 24 images par seconde (test8).
+subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-c', 'copy', '-output_ts_offset', '1.5', 'test6.mp4'], check=True)
+subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', "setpts='(N/30+0.012*sin(N*1.7))/TB'", '-fps_mode', 'vfr',
+                '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', 'test7.mp4'], check=True)
+subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', 'fps=24', '-c:v', 'libx264', '-bf', '0', '-crf', '18',
+                '-c:a', 'copy', 'test8.mp4'], check=True)
+print('test2.mp4, test3.mp4, test5.mp4 à test8.mp4 créés')
