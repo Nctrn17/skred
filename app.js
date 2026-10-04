@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -209,11 +209,15 @@ async function init() {
     const cores = navigator.hardwareConcurrency || 2;
     const wanted = clamp(cores - 1, 1, 3);
     const noWorkers = new URLSearchParams(location.search).has('simple');
-    const workers = noWorkers ? [] : (await Promise.all(Array.from({ length: wanted }, startWorker))).filter(Boolean);
+    // Détecteur, export rapide et copie hors ligne se préparent en même temps ; le choix d'un fichier n'est permis
+    // qu'une fois les trois prêts, pour qu'aucune requête ne parte ensuite.
+    const [workers] = await Promise.all([
+      noWorkers ? [] : Promise.all(Array.from({ length: wanted }, startWorker)).then((w) => w.filter(Boolean)),
+      loadFastExport(),
+      keepOffline(),
+    ]);
     S.runners = workers.length ? workers : [await localRunner()];
     S.parallel = workers.length;
-    await loadFastExport();
-    await keepOffline();
     $('file').disabled = false;
     $('pickLabel').removeAttribute('aria-disabled');
     $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
