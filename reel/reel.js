@@ -759,7 +759,7 @@ function ending(t) {
   ctx.fillStyle = C.ink;
   font(600, 46, { mono: true });
   ctx.textAlign = 'center';
-  ctx.fillText('skred.vercel.app', cx, 1340);
+  ctx.fillText('skred.fr', cx, 1340);
   ctx.globalAlpha = 1;
   const bp = eOut(seg(t, 22.55, 22.9));
   if (bp > 0) {
