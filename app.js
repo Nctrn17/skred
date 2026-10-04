@@ -5,6 +5,10 @@ import { createDetector } from './detector.js';
 const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
+// Un visage qui occupe une grande part de l'image est net, et le détecteur le reconnaît presque toujours avec certitude.
+// La nuit, il croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue :
+// plus un cadre est grand, plus on exige de certitude (0,3 jusqu'à 12 % du petit côté de l'image, 0,65 à partir de 25 %).
+const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.65;
 const GROW = 1.3;             // chaque case est agrandie de 30 % autour du visage
 const ANALYSIS_FPS = 30;      // images regardées par seconde de vidéo
 const HOLD_FRAMES = 4;        // chaque masque commence 4 images avant et finit 4 images après le visage
@@ -21,7 +25,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-04.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-04.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -68,6 +72,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const secs = (t) => t.toFixed(1).replace('.', ',') + ' s';
 const isPhoto = () => S.kind === 'photo';
+const needed = (d) => MIN_SCORE + (BIG_SCORE - MIN_SCORE) * clamp((d.w / Math.min(S.W, S.H) - BIG_FROM) / (BIG_TO - BIG_FROM), 0, 1);
+const isSure = (d) => d.s >= needed(d);
 
 /* ---------- Écrans ---------- */
 
@@ -333,7 +339,7 @@ async function scan() {
     if (canvas !== shown) return;
     vctx.drawImage(preview, 0, 0);
     vctx.fillStyle = '#000';
-    for (const b of boxes.filter((x) => x.s >= MIN_SCORE).map(grow)) vctx.fillRect(b.x, b.y, b.w, b.h);
+    for (const b of boxes.filter(isSure).map(grow)) vctx.fillRect(b.x, b.y, b.w, b.h);
     shown = null;
   };
   // Analyse une image (déjà dessinée sur `canvas`) et range le résultat pour les images i à j.
@@ -492,7 +498,7 @@ function buildTracks(results) {
         const reach = Math.max((l.w + d.w) / 2, floor) * Math.min(3, 1 + 0.4 * (i - t.lastIdx - 1));
         const dist = Math.hypot(l.x + l.w / 2 - d.x - d.w / 2, l.y + l.h / 2 - d.y - d.h / 2) / reach;
         // Une détection très incertaine ne prolonge un masque que de près, et si le visage a été vu nettement il y a peu.
-        const sure = d.s >= MIN_SCORE;
+        const sure = isSure(d);
         if (dist < (sure ? TRACK.match : TRACK.lowMatch) && (sure || i - t.sureIdx <= TRACK.gap)) pairs.push({ d, t, dist });
       }
     }
@@ -504,11 +510,11 @@ function buildTracks(results) {
       t.dets.set(i, d);
       t.last = d;
       t.lastIdx = i;
-      if (d.s >= MIN_SCORE) t.sureIdx = i;
+      if (isSure(d)) t.sureIdx = i;
     };
     for (const p of pairs) if (!usedT.has(p.t) && !usedD.has(p.d)) assign(p.d, p.t);
     for (const d of dets) {
-      if (usedD.has(d) || d.s < MIN_SCORE) continue;   // trop incertain pour ouvrir un nouveau masque
+      if (usedD.has(d) || !isSure(d)) continue;   // trop incertain pour ouvrir un nouveau masque
       const t = { id: tracks.length + 1, dets: new Map(), removed: false };
       tracks.push(t);
       active.push(t);

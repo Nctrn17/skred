@@ -27,4 +27,9 @@ subprocess.run([
 # La même en 1080 x 1920, la taille d'une vidéo de téléphone.
 subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', 'scale=1080:1920',
                 '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', 'test3.mp4'], check=True)
-print('test2.mp4 et test3.mp4 créés')
+# La même de nuit : sombre, bruitée, floue. Le grand visage doit rester masqué même s'il est mal reconnu.
+subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf',
+                'eq=brightness=-0.2:gamma=0.5:saturation=1.2,noise=alls=30:allf=t,tmix=frames=3,boxblur=3:1',
+                '-c:v', 'libx264', '-crf', '20', '-c:a', 'copy', '-metadata', 'location=+48.8566+002.3522/',
+                '-metadata', 'make=TestPhone', 'test5.mp4'], check=True)
+print('test2.mp4, test3.mp4 et test5.mp4 créés')
