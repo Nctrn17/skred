@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.15';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.16';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -984,13 +984,18 @@ window.addEventListener('resize', () => { if (!$('s-review').hidden) { sizeTimel
 
 /* ---------- Création du fichier masqué ---------- */
 
-function finish(blob, name, info) {
+async function finish(blob, name, info) {
   if (S.resultUrl) URL.revokeObjectURL(S.resultUrl);
+  if (S.previewUrl) URL.revokeObjectURL(S.previewUrl);
+  // Fichier d'un seul tenant, et une adresse pour l'aperçu distincte de celle du téléchargement :
+  // sur iPhone, Safari n'affichait pas l'aperçu une fois le téléchargement lancé.
+  blob = new Blob([await blob.arrayBuffer()], { type: blob.type });
   S.resultUrl = URL.createObjectURL(blob);
+  S.previewUrl = URL.createObjectURL(blob);
   S.resultFile = new File([blob], name, { type: blob.type });
   $('result').hidden = isPhoto();
   $('resultImg').hidden = !isPhoto();
-  (isPhoto() ? $('resultImg') : $('result')).src = S.resultUrl;
+  (isPhoto() ? $('resultImg') : $('result')).src = S.previewUrl;
   $('download').href = S.resultUrl;
   $('download').download = name;
   $('share').hidden = !ANDROID && !(navigator.canShare && navigator.canShare({ files: [S.resultFile] }));
@@ -1276,7 +1281,8 @@ function resetAll() {
   $('resultImg').removeAttribute('src');
   if (S.srcUrl) URL.revokeObjectURL(S.srcUrl);
   if (S.resultUrl) URL.revokeObjectURL(S.resultUrl);
-  S.srcUrl = S.resultUrl = S.resultFile = S.img = S.file = null;
+  if (S.previewUrl) URL.revokeObjectURL(S.previewUrl);
+  S.srcUrl = S.resultUrl = S.previewUrl = S.resultFile = S.img = S.file = null;
   S.tracks = [];
   S.frames = [];
   S.raw = [];
@@ -1307,7 +1313,7 @@ $('pickLabel').addEventListener('drop', (e) => {
 });
 // Diagnostic à l'écran (adresse avec ?diag) : pour voir ce qui se passe sur un téléphone sans outils de développeur.
 // Le journal survit à un rechargement de la page.
-if (/[?&](diag|essai)/.test(location.search)) {
+if (/[?&](diag|essai)\b/.test(location.search)) {
   const box = document.createElement('pre');
   box.style.cssText = 'position:fixed;left:0;right:0;top:0;max-height:30vh;pointer-events:none;overflow:auto;margin:0;padding:6px;font:10px/1.3 monospace;background:#000c;color:#0f0;z-index:99;white-space:pre-wrap';
   document.body.append(box);
@@ -1327,6 +1333,7 @@ if (/[?&](diag|essai)/.test(location.search)) {
   $('file').addEventListener('change', () => { const f = $('file').files[0]; log(`change ${f ? `${f.name} ${f.type} ${f.size}` : 'vide'}`); });
   for (const ev of ['loadstart', 'loadedmetadata', 'loadeddata', 'error', 'stalled', 'suspend', 'abort', 'emptied']) video.addEventListener(ev, () => log('video ' + ev + (ev === 'error' && video.error ? ' ' + video.error.code + ' ' + video.error.message : '')));
   window.addEventListener('error', (e) => log('ERREUR ' + e.message));
+  for (const ev of ['loadeddata', 'error']) $('result').addEventListener(ev, () => log('aperçu ' + ev + (ev === 'error' && $('result').error ? ' ' + $('result').error.code + ' ' + $('result').error.message : '')));
   window.addEventListener('unhandledrejection', (e) => log('REJET ' + (e.reason && e.reason.message)));
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('controllerchange', () => log('controllerchange'));
 }
