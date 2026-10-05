@@ -17,6 +17,7 @@ function overlap(a, b) {
 
 // Certitude exigée d'un cadre selon sa taille (r : réglages venus d'app.js, short : petit côté de l'image).
 export function neededScore(d, short, r) {
+  if (d.w / short < r.from) return r.small;
   return r.min + (r.big - r.min) * Math.min(1, Math.max(0, (d.w / short - r.from) / (r.to - r.from)));
 }
 

@@ -22,6 +22,7 @@ NMS_IOU = 0.3
 KEEP_SCORE = 0.15
 MAX_SIDE = 1920
 GROW = 1.3
+SMALL_SCORE = 0.2   # petits visages (moins de 12 % du petit côté) : seuil plus bas, comme app.js
 LOW_FACTOR = 3   # seconde passe : l'image analysée, réduite 3 fois
 
 session = ort.InferenceSession(os.path.join(ROOT, 'models', 'yunet.onnx'), providers=['CPUExecutionProvider'])
@@ -147,7 +148,7 @@ def masks_old(r):
 def masks_app(r, low_score=0.7):
     """La règle de app.js (judge) : un grand cadre doit être très sûr ou retrouvé sur l'image réduite au tiers."""
     side = min(r['W'], r['H'])
-    out = [grow(d) for d in r['dets'] if d[4] >= ramp(d, side) or (d[4] >= 0.3 and any(iou(d, l) > 0.3 for l in r['lo']))]
+    out = [grow(d) for d in r['dets'] if d[4] >= (SMALL_SCORE if d[2] / side < 0.12 else ramp(d, side)) or (d[4] >= 0.3 and any(iou(d, l) > 0.3 for l in r['lo']))]
     return out + [grow(l) for l in r['lo'] if l[4] >= low_score and l[2] / side >= 0.12]
 
 

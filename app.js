@@ -12,13 +12,16 @@ if ((location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test
 const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
+// Les petits visages (moins de 12 % du petit côté) sont presque tous les ratés. Un petit carré posé à tort gêne peu :
+// pour eux, le seuil descend à 0,2 (visages ratés de jour -26 %, de nuit -34 %, mesuré par test/eval-faces.py).
+const SMALL_SCORE = 0.2;
 // La nuit, le détecteur croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue.
-// Un grand cadre (plus de 12 % du petit côté de l'image) doit donc être soit très sûr (jusqu'à 0,65 à partir de 25 %),
+// Un grand cadre (plus de 12 % du petit côté de l'image) doit donc être soit très sûr (jusqu'à 0,85 à partir de 25 %),
 // soit retrouvé sur l'image réduite au tiers (voir detectBoth). Et un gros plan bien reconnu sur l'image réduite
-// (0,5 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
+// (0,7 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
 // visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
 const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.85, LOW_SCORE = 0.7;
-const RULE = { min: MIN_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
+const RULE = { min: MIN_SCORE, small: SMALL_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
 // La passe sur l'image réduite double presque le temps d'analyse. Pour rattraper les gros plans ratés, elle n'est faite
 // qu'une image sur 3 : un masque déborde déjà de 4 images avant et après chaque visage, il reste donc posé sans trou.
 // Elle est faite en plus sur toute image où un grand cadre attend sa confirmation (voir detectBoth).
@@ -39,7 +42,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-06.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-06.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -100,7 +103,10 @@ function iou(a, b) {
 // Décide quels cadres d'une image sont assez sûrs pour ouvrir un masque, avec l'aide de la seconde passe.
 function judge(boxes) {
   const full = boxes.filter((b) => !b.lo), low = boxes.filter((b) => b.lo);
-  for (const d of full) d.sure = d.s >= needed(d) || (d.s >= MIN_SCORE && low.some((l) => iou(d, l) > 0.3));
+  for (const d of full) {
+    d.sure = d.s >= needed(d) || (d.s >= MIN_SCORE && low.some((l) => iou(d, l) > 0.3));
+    d.weak = d.sure && d.s < MIN_SCORE;   // petit visage admis grâce au seuil plus bas : à confirmer (buildTracks)
+  }
   const extra = low.filter((l) => l.s >= LOW_SCORE && l.w / Math.min(S.W, S.H) >= BIG_FROM && !full.some((d) => d.sure && iou(d, l) > 0.3));
   for (const l of extra) l.sure = true;
   return full.concat(extra);
@@ -486,6 +492,7 @@ async function scan() {
     const always = isPhoto() || sent++ % LOW_EVERY === 0;   // compté par image envoyée, pas par numéro d'image
     tasks.push(runner.detect(bitmap, side, always).then((found) => {
       const boxes = judge(found);
+      for (const b of boxes) b.at = i;   // première image servie par cette analyse
       S.detectMs += performance.now() - t0;
       S.detectCount++;
       for (let k = i; k <= j; k++) if (!results[k]) { results[k] = boxes; done++; }
@@ -654,6 +661,14 @@ function buildTracks(results) {
     for (const p of pairs) if (!usedT.has(p.t) && !usedD.has(p.d)) assign(p.d, p.t);
     for (const d of dets) {
       if (usedD.has(d) || !isSure(d)) continue;   // trop incertain pour ouvrir un nouveau masque
+      // Un petit visage peu sûr n'ouvre un masque que s'il était déjà là à l'analyse d'avant : vu une seule fois,
+      // c'est presque toujours du bruit, qui ferait clignoter des carrés (mesuré : près de la moitié des cas).
+      // Une même analyse sert à plusieurs images d'affilée (i à j) : la précédente est celle de l'image d'avant i.
+      // Photo : pas d'avant.
+      if (d.weak && N > 1) {
+        const k = (d.at ?? i) - 1;
+        if (!(results[k] || []).some((p) => p.s >= SMALL_SCORE && iou(p, d) > 0.3)) continue;
+      }
       const t = { id: tracks.length + 1, dets: new Map(), removed: false };
       tracks.push(t);
       active.push(t);
