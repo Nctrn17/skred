@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.14';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.15';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -175,6 +175,7 @@ function startWorker() {
     let nextId = 1;
     const giveUp = setTimeout(() => { w.terminate(); resolve(null); }, 20000);
     const runner = {
+      stop: () => w.terminate(),
       detect: (bitmap, maxSide, always) => new Promise((ok, ko) => {
         const id = nextId++;
         pending.set(id, { ok, ko });
@@ -264,7 +265,11 @@ async function sharedFile() {
 async function init() {
   try {
     const cores = navigator.hardwareConcurrency || 2;
-    const wanted = clamp(cores - 1, 1, 3);
+    // Sur iPhone, Safari donne peu de mémoire à une page : chaque moteur de détection en réserve une part,
+    // au-delà de deux le démarrage échoue (« Out of memory »), surtout sur les modèles anciens.
+    const ua = navigator.userAgent;
+    const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const wanted = clamp(cores - 1, 1, ios ? 2 : 3);
     const noWorkers = new URLSearchParams(location.search).has('simple');
     // Détecteur, export rapide et copie hors ligne se préparent en même temps ; le choix d'un fichier n'est permis
     // qu'une fois les trois prêts, pour qu'aucune requête ne parte ensuite.
@@ -274,6 +279,10 @@ async function init() {
       ANDROID ? androidHello() : keepOffline(),
     ]);
     S.runners = workers.length ? workers : [await localRunner()];
+    // Safari garde la page quittée en mémoire, moteurs compris : un rechargement doublerait la mémoire prise.
+    // On arrête les moteurs en quittant la page ; si Safari la ressort de sa mémoire, on la recharge.
+    addEventListener('pagehide', () => { for (const r of S.runners) if (r.stop) r.stop(); });
+    addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
     S.parallel = workers.length;
     $('file').disabled = false;
     $('pickLabel').removeAttribute('aria-disabled');
