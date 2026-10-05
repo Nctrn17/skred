@@ -21,6 +21,23 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 - Il peut rater un visage. La vérification à l'œil avant de poster reste indispensable.
 - Il ne promet pas une protection totale.
 
+## Comment le vérifier
+
+Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rien installer de spécial.
+
+- **App Android : aucune permission, pas même internet.** Dans les réglages du téléphone, Applications → skred →
+  Autorisations : la liste est vide. Sans la permission internet, Android interdit lui-même à l'app d'envoyer quoi que ce soit.
+  Le fichier qui le déclare : `android/app/src/main/AndroidManifest.xml`.
+- **Site : en mode avion.** Ouvre skred.fr une première fois avec du réseau, puis passe en mode avion et traite une vidéo :
+  tout marche. Sans réseau, rien ne peut partir.
+- **Site : l'onglet Réseau du navigateur.** Sur ordinateur, ouvre les outils de développement (F12), onglet Réseau,
+  puis traite une vidéo. Après le chargement de la page, aucune requête n'apparaît pendant l'analyse ni pendant l'export.
+- **Site : la politique de sécurité.** Chaque fichier du site est servi avec l'en-tête `Content-Security-Policy`
+  (`_headers`), visible dans l'onglet Réseau. `connect-src 'self'` interdit au navigateur toute connexion vers un autre site.
+  skred.fr lui-même ne sert que des fichiers statiques : aucun code côté serveur ne pourrait recevoir une vidéo.
+- **Le test automatique** (voir « Tester ») échoue si une seule requête part après le chargement de la page.
+- **Le code est public.** Les envois réseau se cherchent en quelques secondes : `grep -rn "fetch(" app.js sw.js`.
+
 ## Comment c'est fait
 
 - Site statique, sans étape de construction : `index.html`, `style.css`, `app.js`.
