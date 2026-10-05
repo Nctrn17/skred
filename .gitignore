@@ -12,6 +12,7 @@ test/*
 !test/eval-nuit.py
 !test/prepare-darkface.py
 !test/darkface-split.json
+!test/entrainer-nuit.sh
 
 .vercel
 .env*

@@ -45,7 +45,7 @@ You don't have to take our word for it. Each point below can be checked without 
 ## How it works
 
 - Static site, no build step for the code: `index.html`, `style.css`, `app.js`.
-- Face detection: the YuNet model (OpenCV), run by ONNX Runtime Web (`detector.js`, `detect-worker.js`),
+- Face detection: the YuNet_n model, retrained to see better at night (`models/README.md`), run by ONNX Runtime Web (`detector.js`, `detect-worker.js`),
   on several cores in parallel. Very dark frames are analysed twice, as is and brightened, and the results are merged.
 - Tracking: one box per face from frame to frame, enlarged by 30%, extended a few frames before and after.
 - Fast export: the original file is decoded frame by frame, each frame is masked then re-encoded
@@ -127,10 +127,9 @@ recover it. The black box is painted on the frame before it reaches the encoder,
 bash test/verifier-tiers.sh
 ```
 
-Downloads ONNX Runtime and Mediabunny from npm and the YuNet model from OpenCV Zoo, and checks that the
-files in the repository are byte-for-byte identical to the originals. Two edits, redone by the script:
-the `sourceMappingURL` line of `ort.wasm.min.mjs` is emptied, and the model declares free input dimensions
-(see `models/README.md`).
+Downloads ONNX Runtime and Mediabunny from npm and checks that the files in the repository are
+byte-for-byte identical to the originals. One edit, redone by the script: the `sourceMappingURL` line of
+`ort.wasm.min.mjs` is emptied. The model was retrained for skred: its recipe is in `test/entrainer-nuit.sh`.
 
 ### Detection accuracy
 
@@ -146,7 +145,7 @@ the same rule with CenterFace, the model used by [deface](https://github.com/ORB
 
 ## Third-party components
 
-- [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), MIT licence (`models/`).
+- [YuNet_n](https://github.com/ShiqiYu/libfacedetection.train), BSD-3 licence, retrained on WIDER FACE and DARK FACE (`models/`).
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), MIT licence (`vendor/ort/`).
 - [Mediabunny](https://github.com/Vanilagy/mediabunny), MPL-2.0 licence (`vendor/mediabunny/`).
 - Archivo and JetBrains Mono fonts, SIL OFL 1.1 licence (`vendor/fonts/`).

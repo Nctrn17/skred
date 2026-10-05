@@ -17,7 +17,7 @@ const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop mas
 // soit retrouvé sur l'image réduite au tiers (voir detectBoth). Et un gros plan bien reconnu sur l'image réduite
 // (0,5 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
 // visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
-const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.65, LOW_SCORE = 0.5;
+const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.85, LOW_SCORE = 0.7;
 const RULE = { min: MIN_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
 // La passe sur l'image réduite double presque le temps d'analyse. Pour rattraper les gros plans ratés, elle n'est faite
 // qu'une image sur 3 : un masque déborde déjà de 4 images avant et après chaque visage, il reste donc posé sans trou.
@@ -39,7 +39,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.22';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-06.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;

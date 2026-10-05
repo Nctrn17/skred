@@ -48,7 +48,7 @@
       <li><b>Code public.</b> Sous licence libre : <a href="https://github.com/Nctrn17/skred">github.com/Nctrn17/skred</a>. Le site sert le même fichier, lisible, sans rien de caché.</li>
       <li><b>Aucune trace du visage.</b> <code>test/test-sans-trace.mjs</code> prend deux vidéos identiques sauf les visages, leur pose les mêmes masques : les fichiers produits sont identiques octet pour octet. Aucun filigrane ne peut permettre de retrouver le visage.</li>
       <li><b>Aucun envoi.</b> La page interdit au navigateur de se connecter à un autre site que skred.fr. L'app Android n'a même pas la permission d'utiliser Internet.</li>
-      <li><b>Bibliothèques d'origine.</b> ONNX Runtime, Mediabunny et le modèle YuNet (OpenCV) : <code>test/verifier-tiers.sh</code> vérifie qu'ils sont identiques aux versions officielles.</li>
+      <li><b>Bibliothèques d'origine.</b> ONNX Runtime et Mediabunny : <code>test/verifier-tiers.sh</code> vérifie qu'ils sont identiques aux versions officielles. Le modèle de détection est YuNet, réentraîné pour mieux voir la nuit : sa recette est publique.</li>
     </ul>
   </section>
 

@@ -136,7 +136,7 @@ def collect(name, items):
 # ---------- Règles ----------
 # Chaque règle renvoie les masques posés sur une image (cadres agrandis comme dans app.js).
 
-def ramp(d, side, a=0.12, b=0.25, top=0.65, base=0.3):
+def ramp(d, side, a=0.12, b=0.25, top=0.85, base=0.3):
     return base + (top - base) * min(1, max(0, (d[2] / side - a) / (b - a)))
 
 
@@ -144,7 +144,7 @@ def masks_old(r):
     return [grow(d) for d in r['dets'] if d[4] >= 0.3]
 
 
-def masks_app(r, low_score=0.5):
+def masks_app(r, low_score=0.7):
     """La règle de app.js (judge) : un grand cadre doit être très sûr ou retrouvé sur l'image réduite au tiers."""
     side = min(r['W'], r['H'])
     out = [grow(d) for d in r['dets'] if d[4] >= ramp(d, side) or (d[4] >= 0.3 and any(iou(d, l) > 0.3 for l in r['lo']))]

@@ -43,7 +43,7 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
 ## Comment c'est fait
 
 - Site statique, sans étape de construction : `index.html`, `style.css`, `app.js`.
-- Détection des visages : modèle YuNet (OpenCV), exécuté par ONNX Runtime Web (`detector.js`, `detect-worker.js`),
+- Détection des visages : modèle YuNet_n réentraîné pour mieux voir la nuit (`models/README.md`), exécuté par ONNX Runtime Web (`detector.js`, `detect-worker.js`),
   sur plusieurs cœurs en parallèle. Les images très sombres sont analysées deux fois, telles quelles et éclaircies,
   et les visages trouvés sont réunis.
 - Suivi : une seule case par visage d'une image à l'autre, agrandie de 30 %, prolongée de quelques images avant et après.
@@ -129,10 +129,9 @@ retrouver. Le carré noir est peint sur l'image avant qu'elle parte à l'encodeu
 bash test/verifier-tiers.sh
 ```
 
-Télécharge ONNX Runtime et Mediabunny depuis npm et le modèle YuNet depuis OpenCV Zoo, et vérifie que les
-fichiers du dépôt sont identiques aux originaux, à l'octet près. Deux retouches, refaites par le script :
-la ligne `sourceMappingURL` de `ort.wasm.min.mjs` est vidée, et le modèle déclare ses dimensions libres
-(voir `models/README.md`).
+Télécharge ONNX Runtime et Mediabunny depuis npm et vérifie que les fichiers du dépôt sont identiques aux
+originaux, à l'octet près. Seule retouche, refaite par le script : la ligne `sourceMappingURL` de `ort.wasm.min.mjs`
+est vidée. Le modèle, lui, a été réentraîné pour skred : sa recette est dans `test/entrainer-nuit.sh`.
 
 ### Précision de la détection
 
@@ -148,7 +147,7 @@ WIDER FACE (validation, de jour) et DARK FACE (de nuit). `test/eval-centerface.p
 
 ## Composants tiers
 
-- [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), licence MIT (`models/`).
+- [YuNet_n](https://github.com/ShiqiYu/libfacedetection.train), licence BSD-3, réentraîné sur WIDER FACE et DARK FACE (`models/`).
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), licence MIT (`vendor/ort/`).
 - [Mediabunny](https://github.com/Vanilagy/mediabunny), licence MPL-2.0 (`vendor/mediabunny/`).
 - Polices Archivo et JetBrains Mono, licence SIL OFL 1.1 (`vendor/fonts/`).

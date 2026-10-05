@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vérifie que les fichiers tiers embarqués sont bien les versions officielles, à l'octet près.
-# Besoin : npm, curl, python avec le paquet onnx (pip install onnx).
+# Besoin : npm.
 # Usage : bash test/verifier-tiers.sh   (depuis la racine du dépôt)
 set -e
 ici=$(pwd)
@@ -25,18 +25,7 @@ sed 's/^\/\/# sourceMappingURL=.*$//' ort/package/dist/ort.wasm.min.mjs > ort.wa
 compare vendor/ort/ort.wasm.min.mjs ort.wasm.min.mjs "ONNX Runtime : ort.wasm.min.mjs (ligne sourceMappingURL vidée)"
 compare vendor/mediabunny/mediabunny.min.mjs mb/package/dist/bundles/mediabunny.min.mjs "Mediabunny : mediabunny.min.mjs"
 
-# Modèle YuNet, depuis OpenCV Zoo, avec la seule retouche décrite dans models/README.md.
-curl -sL -o yunet-officiel.onnx https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
-python - <<'EOF'
-import onnx
-m = onnx.load('yunet-officiel.onnx')
-d = m.graph.input[0].type.tensor_type.shape.dim
-d[2].dim_param = 'h'; d[3].dim_param = 'w'
-for out in m.graph.output:
-    out.type.tensor_type.shape.dim[1].dim_param = 'n'
-del m.graph.value_info[:]
-onnx.save(m, 'yunet.onnx')
-EOF
-compare models/yunet.onnx yunet.onnx "YuNet : yunet.onnx (dimensions d'entrée libres)"
+# Le modèle (models/yunet.onnx) n'est plus un fichier tiers tel quel : il a été réentraîné pour skred.
+# Sa recette est dans test/entrainer-nuit.sh, ses mesures dans models/README.md.
 
 exit $ok
