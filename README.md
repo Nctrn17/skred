@@ -87,8 +87,32 @@ node test/run-test.mjs
 ```
 
 Le test ouvre Chrome sans fenêtre, analyse une vidéo dont la position des visages est connue, exporte,
-puis vérifie dans le fichier produit qu'aucun visage n'est visible, que les métadonnées ont disparu
-et qu'aucune requête n'est partie après le chargement de la page.
+puis vérifie dans le fichier produit, image par image et sur 25 points de chaque visage, qu'aucun visage
+n'est visible, que les métadonnées ont disparu et qu'aucune requête n'est partie après le chargement de la page.
+Il échoue (code de sortie 1) au moindre défaut.
+
+### Aucune trace du visage dans le fichier
+
+```bash
+python test/make-faces-pair.py
+node test/test-sans-trace.mjs
+```
+
+Deux vidéos identiques au pixel près, sauf l'intérieur des visages. La seconde reçoit exactement les mêmes
+masques que la première, puis les deux sont exportées : les fichiers produits doivent être identiques octet
+pour octet. Le résultat ne dépend donc pas du visage d'origine, et aucun filigrane ne peut permettre de le
+retrouver. Le carré noir est peint sur l'image avant qu'elle parte à l'encodeur, qui ne voit jamais le visage.
+
+### Fichiers tiers
+
+```bash
+bash test/verifier-tiers.sh
+```
+
+Télécharge ONNX Runtime et Mediabunny depuis npm et le modèle YuNet depuis OpenCV Zoo, et vérifie que les
+fichiers du dépôt sont identiques aux originaux, à l'octet près. Deux retouches, refaites par le script :
+la ligne `sourceMappingURL` de `ort.wasm.min.mjs` est vidée, et le modèle déclare ses dimensions libres
+(voir `models/README.md`).
 
 ## Limites connues
 

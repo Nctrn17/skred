@@ -50,7 +50,12 @@ const out = { parallel: await run(`return window.skred.S.parallel;`) };
 const file = process.argv[2] || 'test2.mp4';
 const K = Number(process.argv[3]) || 1;
 const known = /^test\d\.mp4$/.test(file);   // vidéos fabriquées, positions des visages connues
-const TRUTH = `const truth = (t) => [[60+280*Math.abs(Math.sin(t*2.5))+120, 120+200*Math.abs(Math.cos(t*1.7))+135], [124,869], [517+60*Math.sin(t),1022], [632,1195]].map(([x, y]) => [x * ${K}, y * ${K}]);`;
+const TRUTH = `const truth = (t) => [[60+280*Math.abs(Math.sin(t*2.5))+120, 120+200*Math.abs(Math.cos(t*1.7))+135], [124,869], [517+60*Math.sin(t),1022], [632,1195]].map(([x, y]) => [x * ${K}, y * ${K}]);
+  // Taille de chaque photo collée (voir make-test-video.py). Le visage lui-même (front, joues, menton) y occupe, autour
+  // du point donné par truth, de -13 % à +21 % de la largeur et de -11 % à +21 % de la hauteur : 25 points le couvrent.
+  const PATCH = [[330, 390], [120, 142], [48, 57], [34, 40]];
+  const facePoints = (t) => truth(t).map(([X, Y], k) => { const [w, h] = PATCH[k].map((v) => v * ${K}); const pts = [];
+    for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) pts.push([X + w * (-0.13 + 0.34 * i / 4), Y + h * (-0.11 + 0.32 * j / 4)]); return pts; });`;
 if (process.argv.includes('fast')) await run(`document.getElementById('fast').checked = true;`);
 
 await run(`const b = await (await fetch('test/${file}')).blob(); const dt = new DataTransfer(); dt.items.add(new File([b], '${file}', { type: 'video/mp4' }));
@@ -77,15 +82,18 @@ out.export = await run(`${TRUTH} const S = window.skred.S; const v = document.ge
   const lit = (X, Y) => { const d = x.getImageData(Math.round(X), Math.round(Y), 1, 1).data; return d[0] + d[1] + d[2] > 40 ? 1 : 0; };
   // Le fichier produit peut être décalé de quelques images : on teste plusieurs décalages et on garde le meilleur.
   const offs = []; for (let o = 0; o <= 0.4001; o += 0.02) offs.push(o);
+  // Pour chaque visage : nombre d'images où au moins un des 25 points du visage reste visible.
   const bad = offs.map(() => [0,0,0,0]); let n = 0; const dur = Number.isFinite(v.duration) ? v.duration : S.duration;
   if (${known}) for (let t = 0.45; t < dur - 0.3; t += 1 / 30) {
     await new Promise(r => { v.addEventListener('seeked', r, { once: true }); v.currentTime = t; }); await new Promise(r => setTimeout(r, 25));
     x.drawImage(v, 0, 0, S.W, S.H); n++;
-    offs.forEach((o, i) => truth(t - o).forEach(([X, Y], k) => { bad[i][k] += lit(X, Y); }));
+    offs.forEach((o, i) => facePoints(t - o).forEach((pts, k) => { if (pts.some(([X, Y]) => lit(X, Y))) bad[i][k]++; }));
   }
-  const best = bad.reduce((a, b) => (b.reduce((p, q) => p + q, 0) < a.reduce((p, q) => p + q, 0) ? b : a));
+  const total = (b) => b.reduce((p, q) => p + q, 0);
+  const iBest = bad.reduce((bi, b, i) => (total(b) < total(bad[bi]) ? i : bi), 0);
+  const best = bad[iBest];
   const txt = await S.resultFile.text();
-  return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, visagesVisibles: best,
+  return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, visagesVisibles: best, decalage: +offs[iBest].toFixed(2),
     metadonnees: ['Lavf', '48.8566', 'TestPhone', 'Mediabunny'].filter(k => txt.includes(k)), datesDansLeFichier: await (async () => {
       // Date de création écrite dans chaque en-tête du MP4 : doit valoir 0 partout.
       const h = new Uint8Array(await S.resultFile.slice(0, 1 << 20).arrayBuffer()); const found = [];
@@ -111,3 +119,16 @@ out.requetesApresChargement = requests.slice(mark).filter((u) => !u.startsWith('
 console.log(JSON.stringify(out, null, 2));
 ws.close();
 chrome.kill();
+
+// Le test échoue (code de sortie 1) au moindre défaut : un visage visible ne serait-ce que sur une image, une trace du
+// fichier d'origine, une date de création, une requête réseau, ou une erreur affichée.
+const e = out.export, fails = [];
+if (e.erreur) fails.push('erreur affichée : ' + e.erreur);
+if (known && !(e.imagesControlees > 0)) fails.push('aucune image contrôlée');
+if (known && e.visagesVisibles.some((c) => c > 0)) fails.push('visages visibles (images par visage) : ' + e.visagesVisibles.join(', '));
+if (known && e.decalage > 0.1) fails.push('masques décalés de ' + e.decalage + ' s');
+if (e.metadonnees.length) fails.push('métadonnées restantes : ' + e.metadonnees.join(', '));
+if (e.datesDansLeFichier.some((d) => !d.endsWith('=0'))) fails.push('dates de création : ' + e.datesDansLeFichier.join(', '));
+if (out.requetesApresChargement.length) fails.push('requêtes après le chargement : ' + out.requetesApresChargement.join(', '));
+if (fails.length) { console.error('ÉCHEC\n- ' + fails.join('\n- ')); process.exit(1); }
+console.log('OK');
