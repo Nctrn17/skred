@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+# Copie des fichiers du site, refaite à chaque construction
+app/src/main/assets/
+app/src/debug/assets/
+*.jks
+*.keystore

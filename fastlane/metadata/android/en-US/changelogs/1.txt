@@ -1,0 +1,1 @@
+First Android release: the whole skred website in an app with no permissions. Saves to the gallery, shares, and opens videos shared from the gallery.

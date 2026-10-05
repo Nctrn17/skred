@@ -1,0 +1,85 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'fr.skred.app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'fr.skred.app'
+        minSdk 29
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    // Signature des APK publiés sur GitHub. La clé et ses mots de passe restent hors du dépôt :
+    // le chemin du fichier qui les décrit est donné par SKRED_KEYSTORE (sinon ~/.skred-signature/keystore.properties).
+    // Sans ce fichier (F-Droid, IzzyOnDroid, une autre personne), l'APK de publication sort non signé.
+    def ksFile = file(System.getenv('SKRED_KEYSTORE') ?: "${System.getProperty('user.home')}/.skred-signature/keystore.properties")
+    if (ksFile.exists()) {
+        def ks = new Properties()
+        ksFile.withInputStream { ks.load(it) }
+        signingConfigs {
+            release {
+                storeFile file(ks.storeFile)
+                storePassword ks.storePassword
+                keyAlias ks.keyAlias
+                keyPassword ks.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (ksFile.exists()) signingConfig signingConfigs.release
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // F-Droid refuse le bloc chiffré que Google ajoute à l'APK (liste des dépendances).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.core:core:1.13.1'
+}
+
+// Copie les fichiers du site dans les assets de l'app, avant chaque construction.
+// Même liste que build.mjs (le site publié) : celle de sw.js, plus la page, les icônes et les licences.
+// Ni le service worker ni _headers : l'app n'en a pas besoin.
+def site = rootProject.file('..')
+tasks.register('copySite', Copy) {
+    def sw = new File(site, 'sw.js').getText('UTF-8')
+    def block = (sw =~ /const FILES = \[([\s\S]*?)\];/)[0][1]
+    def listed = (block =~ /'([^']+)'/).collect { it[1] }.findAll { it != './' }
+    def files = ['index.html', 'favicon.ico', 'icon.svg'] + listed +
+        ['models/LICENSE-yunet.txt', 'vendor/fonts/LICENSE.txt', 'vendor/ort/LICENSE.txt', 'vendor/mediabunny/LICENSE.txt']
+    from(site) { include files.unique() }
+    into 'src/main/assets/site'
+    doFirst { delete 'src/main/assets/site' }
+    inputs.file new File(site, 'sw.js')
+}
+preBuild.dependsOn 'copySite'
+
+// Version de test seulement : deux vidéos de test (dossier test/, jamais suivi par git), pour lancer
+// test/run-test.mjs sur un vrai téléphone. Rien de tout ça n'entre dans la version publiée.
+tasks.register('copyTestVideos', Copy) {
+    from(new File(site, 'test')) { include 'test2.mp4', 'real-a.mp4' }
+    into 'src/debug/assets/site/test'
+}
+tasks.matching { it.name == 'preDebugBuild' }.configureEach { dependsOn 'copyTestVideos' }

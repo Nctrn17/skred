@@ -1,0 +1,1 @@
+Première version de l'app Android : tout le site skred dans une app sans aucune permission. Enregistrement dans la galerie, partage, et ouverture depuis « Partager » de la galerie.

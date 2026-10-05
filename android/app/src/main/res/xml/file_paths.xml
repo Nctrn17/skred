@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Seul le dossier des fichiers masqués peut être partagé vers une autre app. -->
+<paths>
+    <cache-path name="out" path="out/" />
+</paths>

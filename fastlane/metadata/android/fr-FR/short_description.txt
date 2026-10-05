@@ -1,0 +1,1 @@
+Masque les visages d'une vidéo ou d'une photo, sans rien envoyer sur internet

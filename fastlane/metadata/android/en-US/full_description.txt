@@ -1,0 +1,17 @@
+skred covers every face in a video or photo with a solid black square before you post it. Unlike blur or pixelation, a solid square cannot be undone by AI: there is no image left underneath.
+
+<b>How it works</b>
+<ul>
+<li>Pick a video or photo, or share it from your gallery to skred.</li>
+<li>The video is analysed 30 times per second and every face is masked on every frame.</li>
+<li>You check the result: add a mask where a face was missed, remove a wrong one.</li>
+<li>The file is fully rebuilt and saved to your gallery (Movies/skred or Pictures/skred). Location, date and phone model from the original file are gone.</li>
+</ul>
+
+<b>Nothing leaves your phone</b>
+The app requests no permissions at all, not even internet access. No account, no analytics, no ads.
+
+<b>What skred does not do</b>
+It does not hide clothes, tattoos, voices or places. It can miss a face: always watch the whole result before posting.
+
+The interface is in French. Face detection: YuNet model (OpenCV), run on the phone by ONNX Runtime. Source code under AGPL-3.0. Also available without installing at https://skred.fr.

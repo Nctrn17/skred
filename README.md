@@ -49,6 +49,28 @@ node build.mjs
 npx wrangler deploy
 ```
 
+## App Android
+
+Dossier `android/` : le site entier rangé dans une app, affiché par une WebView (`MainActivity.java`).
+L'app n'a aucune permission, pas même internet. Elle fait ce que le navigateur faisait seul : choisir un fichier,
+enregistrer le résultat dans la galerie (Films/skred, Images/skred), le partager, garder l'écran allumé, et ouvrir
+une vidéo partagée depuis la galerie. Les fichiers du site sont copiés dans l'app à chaque construction,
+d'après la même liste que `build.mjs`. Textes de la fiche : `fastlane/metadata/android/`.
+
+Construire (JDK 17 ou plus, SDK Android 36) :
+
+```bash
+cd android && ./gradlew assembleRelease
+```
+
+L'APK sort dans `android/app/build/outputs/apk/release/`. Il est signé seulement si le fichier décrivant la clé
+existe (`~/.skred-signature/keystore.properties`, ou le chemin donné par `SKRED_KEYSTORE`).
+La version de test (`assembleDebug`) embarque deux vidéos de `test/` et ouvre la page avec `?debug`,
+pour piloter l'app depuis l'ordinateur (`adb forward`, puis le même protocole que `test/run-test.mjs`).
+
+Distribution : APK sur les publications GitHub, repris par IzzyOnDroid. Pas sur le dépôt principal de F-Droid
+pour l'instant : il refuse les fichiers `.wasm` déjà compilés, comme celui d'ONNX Runtime.
+
 ## Lancer en local
 
 ```bash

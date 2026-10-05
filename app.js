@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -113,7 +113,50 @@ function fail(el, msg) {
   el.hidden = false;
 }
 
+/* ---------- App Android ---------- */
+
+// Dans l'app Android (dossier android/), la page tourne dans une WebView sans accès à internet.
+// L'app y place l'objet skredAndroid : la page lui confie ce que le navigateur faisait seul
+// (enregistrer dans la galerie, partager, garder l'écran allumé, recevoir un fichier partagé).
+const ANDROID = window.skredAndroid || null;
+let androidCaps = { ab: false };
+const androidWaiting = [];
+if (ANDROID) {
+  ANDROID.onmessage = (e) => {
+    let m;
+    try { m = JSON.parse(e.data); } catch { return; }
+    const i = androidWaiting.findIndex((w) => w.types.includes(m.t));
+    if (i >= 0) androidWaiting.splice(i, 1)[0].resolve(m);
+  };
+}
+function androidAsk(msg, types) {
+  return new Promise((resolve) => {
+    androidWaiting.push({ types, resolve });
+    ANDROID.postMessage(JSON.stringify(msg));
+  });
+}
+async function androidHello() {
+  androidCaps = await androidAsk({ t: 'hello' }, ['hello']);
+}
+// Remet un fichier à l'app, par morceaux de 1 Mo. Réponse : 'saved', 'shared' ou 'error'.
+async function androidSend(file, action) {
+  ANDROID.postMessage(JSON.stringify({ t: 'begin', name: file.name, type: file.type, action }));
+  const CHUNK = 1 << 20;
+  for (let o = 0; o < file.size; o += CHUNK) {
+    const buf = await file.slice(o, o + CHUNK).arrayBuffer();
+    if (androidCaps.ab) ANDROID.postMessage(buf);
+    else {
+      const bytes = new Uint8Array(buf);
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+      ANDROID.postMessage(JSON.stringify({ t: 'chunk64', d: btoa(s) }));
+    }
+  }
+  return (await androidAsk({ t: 'end' }, ['saved', 'shared', 'error'])).t;
+}
+
 async function keepAwake(on) {
+  if (ANDROID) { ANDROID.postMessage(JSON.stringify({ t: 'awake', on })); return; }
   try {
     if (on && navigator.wakeLock) S.wake = await navigator.wakeLock.request('screen');
     if (!on && S.wake) { await S.wake.release(); S.wake = null; }
@@ -191,7 +234,19 @@ async function keepOffline() {
 }
 
 // Fichier partagé depuis la galerie (Android, application installée) : sw.js l'a reçu et nous le remet.
+// Dans l'app Android, c'est l'app qui l'a reçu : elle le sert à l'adresse /__partage/.
 async function sharedFile() {
+  if (ANDROID) {
+    if (!androidCaps.shared) return null;
+    try {
+      const blob = await (await fetch('/__partage/fichier')).blob();
+      return new File([blob], androidCaps.shared, { type: androidCaps.sharedType || blob.type });
+    } catch {
+      return null;
+    } finally {
+      ANDROID.postMessage(JSON.stringify({ t: 'partageLu' }));
+    }
+  }
   if (!new URLSearchParams(location.search).has('partage')) return null;
   history.replaceState(null, '', location.pathname);
   const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
@@ -214,7 +269,7 @@ async function init() {
     const [workers] = await Promise.all([
       noWorkers ? [] : Promise.all(Array.from({ length: wanted }, startWorker)).then((w) => w.filter(Boolean)),
       loadFastExport(),
-      keepOffline(),
+      ANDROID ? androidHello() : keepOffline(),
     ]);
     S.runners = workers.length ? workers : [await localRunner()];
     S.parallel = workers.length;
@@ -906,7 +961,7 @@ function finish(blob, name, info) {
   (isPhoto() ? $('resultImg') : $('result')).src = S.resultUrl;
   $('download').href = S.resultUrl;
   $('download').download = name;
-  $('share').hidden = !(navigator.canShare && navigator.canShare({ files: [S.resultFile] }));
+  $('share').hidden = !ANDROID && !(navigator.canShare && navigator.canShare({ files: [S.resultFile] }));
   $('doneTitle').textContent = isPhoto() ? 'Prête.' : 'Prête.';
   $('doneCheck').textContent = isPhoto() ? 'Regarde-la de près avant de poster.' : 'Regarde-la en entier avant de poster.';
   $('doneInfo').textContent = `${info}, ${(blob.size / 1e6).toFixed(1).replace('.', ',')} Mo.`;
@@ -1154,8 +1209,21 @@ async function exportVideo() {
 
 $('export').onclick = () => (isPhoto() ? exportPhoto() : exportVideo());
 $('share').onclick = async () => {
+  if (ANDROID) { await androidSend(S.resultFile, 'share'); return; }
   try { await navigator.share({ files: [S.resultFile] }); } catch { /* partage annulé */ }
 };
+// Dans l'app Android, « Télécharger » devient « Enregistrer » : le fichier va dans la galerie.
+if (ANDROID) {
+  $('download').innerHTML = 'Enregistrer<span>↓</span>';
+  $('share').textContent = 'Partager';
+  $('download').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const where = isPhoto() ? 'Images/skred' : 'Films/skred';
+    const r = await androidSend(S.resultFile, 'save');
+    $('doneInfo').textContent = $('doneInfo').textContent.replace(/ (Enregistrée|Pas enregistrée).*$/, '')
+      + (r === 'saved' ? ` Enregistrée dans ${where}.` : " Pas enregistrée : réessaie avec le bouton.");
+  });
+}
 $('back').onclick = () => { $('result').pause(); openReview(S.t); };
 
 /* ---------- Annuler, recommencer ---------- */
@@ -1216,7 +1284,7 @@ $('file').addEventListener('change', (e) => {
 // Android : la fenêtre d'installation du navigateur. iPhone : Apple ne permet pas de bouton, on montre les gestes.
 // Rien n'apparaît si l'app est déjà ouverte depuis l'écran d'accueil, ni sur ordinateur.
 {
-  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const installed = !!ANDROID || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const touch = matchMedia('(pointer: coarse)').matches;
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
@@ -1252,8 +1320,8 @@ $('file').addEventListener('change', (e) => {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
 }
 
-// Accès aux données pour les tests en local uniquement.
-if (location.hostname === 'localhost') window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
+// Accès aux données pour les tests : en local, ou avec ?debug (version de test de l'app Android).
+if (DEBUG) window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
 
 $('version').textContent = 'version ' + VERSION;
 
