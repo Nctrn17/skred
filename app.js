@@ -2,6 +2,12 @@
 // Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans vercel.json).
 import { createDetector, detectBoth, neededScore } from './detector.js';
 
+// Ouvert en http (certains navigateurs, comme Opera sur iPhone, ne passent pas tout seuls en https) : le navigateur
+// coupe alors la copie hors ligne, l'export rapide et d'autres fonctions. On repart aussitôt sur l'adresse en https.
+if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+  location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+}
+
 const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
@@ -32,7 +38,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.18';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.19';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
