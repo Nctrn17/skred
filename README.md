@@ -1,5 +1,7 @@
 # skred
 
+*[English version](README.en.md)*
+
 Masquer les visages d'une vidéo ou d'une photo avant de la poster, directement dans le navigateur du téléphone.
 Rien n'est envoyé à un serveur : pas de compte, pas de statistiques, pas de fichier tiers chargé depuis un autre site.
 
@@ -42,7 +44,8 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
 
 - Site statique, sans étape de construction : `index.html`, `style.css`, `app.js`.
 - Détection des visages : modèle YuNet (OpenCV), exécuté par ONNX Runtime Web (`detector.js`, `detect-worker.js`),
-  sur plusieurs cœurs en parallèle.
+  sur plusieurs cœurs en parallèle. Les images très sombres sont analysées deux fois, telles quelles et éclaircies,
+  et les visages trouvés sont réunis.
 - Suivi : une seule case par visage d'une image à l'autre, agrandie de 30 %, prolongée de quelques images avant et après.
 - Export rapide : le fichier d'origine est relu image par image, chaque image est masquée puis réencodée
   par l'encodeur du téléphone (WebCodecs, via Mediabunny). Plus rapide que la durée de la vidéo.
@@ -130,6 +133,12 @@ Télécharge ONNX Runtime et Mediabunny depuis npm et le modèle YuNet depuis Op
 fichiers du dépôt sont identiques aux originaux, à l'octet près. Deux retouches, refaites par le script :
 la ligne `sourceMappingURL` de `ort.wasm.min.mjs` est vidée, et le modèle déclare ses dimensions libres
 (voir `models/README.md`).
+
+### Précision de la détection
+
+`test/eval-faces.py` mesure les visages ratés et les faux masques sur deux banques de photos annotées :
+WIDER FACE (validation, de jour) et DARK FACE (de nuit). `test/eval-centerface.py` compare la même règle
+à CenterFace, le modèle de [deface](https://github.com/ORB-HD/deface).
 
 ## Limites connues
 
