@@ -361,3 +361,22 @@ button { font: inherit; color: inherit; }
 .legal p { margin: 0 0 10px; }
 .legal a, .foot a { color: inherit; }
 .legal code { font: 500 13px/1.4 var(--mono); }
+
+/* Page « Vérifier skred » */
+.verif { max-width: 640px; margin: 0 auto; padding: 18px 16px calc(40px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 28px; }
+.verif a { color: inherit; }
+.verif .brand { text-decoration: none; }
+.verif .title { margin-top: 12px; }
+.verif .strong { margin: 0; }
+.verif section { display: flex; flex-direction: column; gap: 12px; }
+.verif h2 { margin: 0; font: 600 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--mute); }
+.verif p, .verif li { font-size: 15px; line-height: 1.5; margin: 0; }
+.verif code { font: 500 13px/1.4 var(--mono); }
+.verif .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.verif .facts li { border-left: 3px solid var(--ink); padding-left: 12px; }
+.verif .proof { background: var(--ink); color: var(--paper); padding: 18px 18px 20px; display: grid; grid-template-columns: auto 1fr; column-gap: 14px; row-gap: 6px; }
+.verif .proof .n { grid-row: span 2; font-weight: 900; font-stretch: 62%; font-size: 48px; line-height: 0.9; }
+.verif .proof h3 { margin: 0; font-weight: 900; font-stretch: 75%; font-size: 24px; line-height: 1; text-transform: uppercase; }
+.verif .proof p { color: #d8d6ce; }
+.verif .limits { background: var(--hatch-light); padding: 18px; }
+.verif .cta { margin-top: 8px; color: var(--paper); }

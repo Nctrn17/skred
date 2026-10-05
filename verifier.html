@@ -12,29 +12,53 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="paper">
-<main class="legal">
-  <p><a href="./">← skred</a></p>
-  <h1>Vérifier skred</h1>
-  <p>Tu as raison de te méfier d'un outil qui touche à des vidéos de gens. Cette page ne te demande pas de nous croire : elle explique comment vérifier.</p>
+<main class="verif">
+  <header class="top"><a class="brand" href="./">skred</a></header>
 
-  <h2>Ce que fait skred</h2>
-  <p>La vidéo est analysée sur ton téléphone. Chaque visage trouvé est recouvert d'un carré noir plein, peint sur l'image avant qu'elle soit réenregistrée : le fichier produit ne contient plus le visage, ni flou ni caché.</p>
-  <p>Le lieu, la date et le modèle du téléphone, que les vidéos gardent souvent dans le fichier, sont retirés.</p>
-  <p>Pas de compte, pas de publicité, pas de mesure d'audience. Comme tout site, l'hébergeur (Cloudflare) voit qui se connecte à skred.fr. Il ne voit jamais les vidéos : elles ne quittent pas ton téléphone.</p>
+  <h1 class="title">Vérifie<br>par toi-<br>même.</h1>
+  <p class="strong">Tu as raison de te méfier d'un outil qui touche à des vidéos de gens. Pas besoin de nous croire : tout se vérifie.</p>
 
-  <h2>Vérifier sans rien installer</h2>
-  <p><b>Le mode avion.</b> Ouvre skred.fr, attends que la page soit chargée, puis passe en mode avion. Choisis une vidéo, masque-la, enregistre-la : tout marche sans réseau. Rien ne peut donc partir.</p>
-  <p><b>Le résultat.</b> Avant de publier, regarde la vidéo masquée en entier, en avançant image par image sur les passages où il y a du monde.</p>
+  <section>
+    <h2>Ce que fait skred</h2>
+    <ul class="facts">
+      <li><b>Sur ton téléphone.</b> La vidéo est analysée dans le navigateur. Elle n'est envoyée nulle part.</li>
+      <li><b>Un carré noir plein.</b> Peint sur l'image avant qu'elle soit réenregistrée : le visage n'est ni flouté ni caché, il n'est plus dans le fichier.</li>
+      <li><b>Sans traces.</b> Le lieu, la date et le modèle du téléphone, souvent gardés dans le fichier, sont retirés.</li>
+      <li><b>Sans compte.</b> Pas de publicité, pas de mesure d'audience. Comme tout site, l'hébergeur (Cloudflare) voit qui se connecte à skred.fr, jamais les vidéos.</li>
+    </ul>
+  </section>
 
-  <h2>Vérifier si tu sais coder</h2>
-  <p>Le code est public, sous licence libre : <a href="https://github.com/Nctrn17/skred">github.com/Nctrn17/skred</a>. Le code de skred servi par le site est le même fichier, lisible, sans rien de caché.</p>
-  <p><b>Aucune trace du visage.</b> Le test <code>test/test-sans-trace.mjs</code> prend deux vidéos identiques sauf les visages, leur pose les mêmes masques et compare les fichiers produits : ils sont identiques octet pour octet. Le résultat ne dépend donc pas du visage, et aucun filigrane ne peut permettre de le retrouver.</p>
-  <p><b>Aucun envoi.</b> La page interdit au navigateur de se connecter à un autre site que skred.fr. L'app Android n'a même pas la permission d'utiliser Internet.</p>
-  <p><b>Les bibliothèques.</b> Les seuls fichiers compressés sont deux bibliothèques connues (ONNX Runtime et Mediabunny) et le modèle de détection (YuNet, d'OpenCV). <code>test/verifier-tiers.sh</code> vérifie qu'ils sont identiques aux versions officielles.</p>
+  <section>
+    <h2>Sans rien installer</h2>
+    <div class="proof">
+      <span class="n">1</span>
+      <h3>Le mode avion</h3>
+      <p>Ouvre skred.fr, attends le chargement, puis passe en mode avion. Masque une vidéo, enregistre-la : tout marche sans réseau. Rien ne peut donc partir.</p>
+    </div>
+    <div class="proof">
+      <span class="n">2</span>
+      <h3>Le résultat</h3>
+      <p>Avant de publier, regarde la vidéo masquée en entier, image par image là où il y a du monde.</p>
+    </div>
+  </section>
 
-  <h2>Ce que skred ne fait pas</h2>
-  <p>Aucun outil ne trouve tous les visages à coup sûr : un visage de profil, caché en partie ou très petit peut être raté. Tu peux ajouter un masque à la main d'une touche sur l'image.</p>
-  <p>Le carré cache le visage, pas les vêtements, les tatouages, la démarche, le lieu ni la voix. Le son est gardé par défaut : coupe-le avec le bouton « Son » si des voix peuvent être reconnues.</p>
+  <section>
+    <h2>Si tu sais coder</h2>
+    <ul class="facts">
+      <li><b>Code public.</b> Sous licence libre : <a href="https://github.com/Nctrn17/skred">github.com/Nctrn17/skred</a>. Le site sert le même fichier, lisible, sans rien de caché.</li>
+      <li><b>Aucune trace du visage.</b> <code>test/test-sans-trace.mjs</code> prend deux vidéos identiques sauf les visages, leur pose les mêmes masques : les fichiers produits sont identiques octet pour octet. Aucun filigrane ne peut permettre de retrouver le visage.</li>
+      <li><b>Aucun envoi.</b> La page interdit au navigateur de se connecter à un autre site que skred.fr. L'app Android n'a même pas la permission d'utiliser Internet.</li>
+      <li><b>Bibliothèques d'origine.</b> ONNX Runtime, Mediabunny et le modèle YuNet (OpenCV) : <code>test/verifier-tiers.sh</code> vérifie qu'ils sont identiques aux versions officielles.</li>
+    </ul>
+  </section>
+
+  <section class="limits">
+    <h2>Ce que skred ne fait pas</h2>
+    <p>Aucun outil ne trouve tous les visages : un profil, un visage caché en partie ou très petit peut être raté. Touche l'image pour ajouter un masque à la main.</p>
+    <p>Le carré cache le visage, pas les vêtements, les tatouages, la démarche, le lieu ni la voix. Le son est gardé par défaut : coupe-le avec le bouton « Son ».</p>
+  </section>
+
+  <a class="cta" href="./">Masquer une vidéo<span>→</span></a>
 </main>
 </body>
 </html>
