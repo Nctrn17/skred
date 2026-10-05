@@ -323,3 +323,33 @@ button { font: inherit; color: inherit; }
   #play { order: 0; }
 }
 .maskBar button.on { background: rgba(11, 11, 10, 0.18); }
+
+/* ---------- Installer l'app ---------- */
+
+.install {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--ink);
+  font: 500 12px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  -webkit-tap-highlight-color: transparent;
+}
+.install::before { content: ''; width: 8px; height: 8px; background: var(--ink); }
+.install:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+
+.sheetBack { position: fixed; inset: 0; z-index: 10; background: rgba(11, 11, 10, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 520px; max-height: 100%; overflow-y: auto; background: var(--paper); color: var(--ink); padding: 22px 24px calc(26px + env(safe-area-inset-bottom)); }
+.sheet h2 { margin: 0 0 6px; font-weight: 900; font-stretch: 62%; font-size: 44px; line-height: 0.9; text-transform: uppercase; }
+.sheet .note { margin-bottom: 18px; }
+.steps { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; padding: 12px; background: #e4e2da; }
+.steps .n { width: 34px; height: 34px; display: grid; place-items: center; background: var(--ink); color: var(--paper); font: 700 15px/1 var(--mono); }
+.steps .t { font-weight: 700; font-size: 16px; line-height: 1.25; }
+.steps svg { width: 24px; height: 24px; }
+.sheet .close { all: unset; cursor: pointer; display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 15px 0; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 16px; }
+.sheet .close:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }

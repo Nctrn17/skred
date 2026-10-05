@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -1209,6 +1209,48 @@ $('file').addEventListener('change', (e) => {
   const f = e.target.files && e.target.files[0];
   if (f) loadFile(f);
 });
+
+/* ---------- Installer l'app ---------- */
+
+// Le site s'installe déjà comme une app (manifest.webmanifest, sw.js) : ce bouton le fait savoir.
+// Android : la fenêtre d'installation du navigateur. iPhone : Apple ne permet pas de bouton, on montre les gestes.
+// Rien n'apparaît si l'app est déjà ouverte depuis l'écran d'accueil, ni sur ordinateur.
+{
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const touch = matchMedia('(pointer: coarse)').matches;
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  let prompt = null;
+  const button = $('install'), sheet = $('iosSheet');
+  const closeSheet = () => { sheet.hidden = true; button.focus(); };
+
+  if (!installed && touch && ios) {
+    button.hidden = false;
+    if (/Instagram|FBAN|FBAV|TikTok|musical_ly|Snapchat|LinkedInApp|Twitter/.test(ua)) $('iosInApp').hidden = false;
+    else if (/CriOS|FxiOS|EdgiOS/.test(ua)) $('iosShare').textContent = "Touche le bouton Partager, dans la barre d'adresse";
+  }
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    if (installed || !touch) return;
+    prompt = e;
+    button.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => { button.hidden = true; prompt = null; });
+  button.onclick = async () => {
+    if (ios) {
+      sheet.hidden = false;
+      $('iosClose').focus();
+    } else if (prompt) {
+      const p = prompt;
+      prompt = null;
+      button.hidden = true;   // refusée ou acceptée, la fenêtre ne peut servir qu'une fois
+      await p.prompt();
+    }
+  };
+  $('iosClose').onclick = closeSheet;
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
+}
 
 // Accès aux données pour les tests en local uniquement.
 if (location.hostname === 'localhost') window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };

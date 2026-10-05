@@ -20,7 +20,7 @@
 
 <!-- Accueil -->
 <section id="s-home" class="screen paper">
-  <header class="top"><span class="brand">skred</span></header>
+  <header class="top"><span class="brand">skred</span><button class="install" id="install" type="button" hidden>Installer l'app</button></header>
   <div class="middle">
     <h1 class="title">Masque<br>les visages.</h1>
     <label class="square pick" id="pickLabel" aria-disabled="true">
@@ -36,6 +36,23 @@
     <span id="version"></span>
   </footer>
 </section>
+
+<!-- Guide d'installation sur iPhone (Apple ne permet pas d'installer depuis un bouton) -->
+<div class="sheetBack" id="iosSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="iosTitle">
+    <h2 id="iosTitle">Installer<br>sur iPhone</h2>
+    <p class="note">Gratuit, sans App Store. skred s'ouvrira comme une app, même sans réseau.</p>
+    <ol class="steps">
+      <li id="iosInApp" hidden><span class="n">0</span><span class="t">Ouvre cette page dans Safari : menu ⋯ puis « Ouvrir dans Safari » ou « dans le navigateur »</span><span></span></li>
+      <li><span class="n">1</span><span class="t" id="iosShare">Touche le bouton Partager, en bas de Safari</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg></li>
+      <li><span class="n">2</span><span class="t">Choisis « Sur l'écran d'accueil »</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></li>
+      <li><span class="n">3</span><span class="t">Touche « Ajouter », en haut à droite</span><span></span></li>
+    </ol>
+    <button class="close" id="iosClose" type="button">J'ai compris</button>
+  </div>
+</div>
 
 <!-- Analyse -->
 <section id="s-scan" class="screen paper" hidden>
