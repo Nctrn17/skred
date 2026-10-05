@@ -360,3 +360,4 @@ button { font: inherit; color: inherit; }
 .legal h2 { font: 600 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .04em; margin: 28px 0 6px; color: var(--mute); }
 .legal p { margin: 0 0 10px; }
 .legal a, .foot a { color: inherit; }
+.legal code { font: 500 13px/1.4 var(--mono); }
