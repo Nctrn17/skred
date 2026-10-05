@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.12';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.13';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -475,6 +475,7 @@ async function scan() {
   };
 
   if (!isPhoto()) await scanByPlayback(job, total, submit, keepForPreview, () => error);
+  if (window.diag) window.diag(`lecture en continu finie : ${((performance.now() - started) / 1000).toFixed(1)} s, ${results.filter(Boolean).length + tasks.length}/${total} images envoyées`);
   // Le reste (tout, si la lecture en continu n'est pas possible) : image par image, en se positionnant sur chacune.
   for (let i = 0; i < total && !job.cancelled && !error; i++) {
     if (results[i]) continue;
@@ -496,6 +497,7 @@ async function scan() {
     return;
   }
   S.scanMs = performance.now() - started;
+  if (window.diag) window.diag(`analyse finie : ${total} images, ${(S.scanMs / 1000).toFixed(1)} s, ${S.seekFallbacks} reprises une par une, ${S.runners.length} fils, ${Math.round(S.detectMs / Math.max(1, S.detectCount))} ms par détection`);
   S.raw = results;
   buildTracks(results);
   openReview(0);
