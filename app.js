@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.8';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.9';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -283,6 +283,7 @@ async function init() {
     if (file) loadFile(file);
   } catch (e) {
     console.error(e);
+    if (window.diag) window.diag('init échoue : ' + (e && (e.stack || e.message || e)));
     $('pickText').textContent = 'Outil indisponible';
     fail($('homeError'), "L'outil n'a pas pu se charger sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
   }
