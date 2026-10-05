@@ -4,7 +4,9 @@
   "name": "skred",
   "compatibility_date": "2026-10-01",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    // Adresse inexistante : 404.html, qui renvoie sur l'accueil.
+    "not_found_handling": "404-page"
   },
   "routes": [
     { "pattern": "skred.fr", "custom_domain": true },
