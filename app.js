@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.16';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.17';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -984,6 +984,20 @@ window.addEventListener('resize', () => { if (!$('s-review').hidden) { sizeTimel
 
 /* ---------- Création du fichier masqué ---------- */
 
+// Diagnostic : quelles variantes du fichier produit Safari accepte de lire dans la page.
+function diagPreview(raw, scrubbed) {
+  const tries = { brut: raw, nettoye: scrubbed, sansType: new Blob([scrubbed]), brutSansType: new Blob([raw]) };
+  for (const [k, b] of Object.entries(tries)) {
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    v.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0';
+    v.onloadedmetadata = () => window.diag(`essai ${k} : lu ${v.videoWidth}x${v.videoHeight}`);
+    v.onerror = () => window.diag(`essai ${k} : erreur ${v.error && v.error.code}`);
+    document.body.append(v);
+    v.src = URL.createObjectURL(b);
+  }
+}
+
 async function finish(blob, name, info) {
   if (S.resultUrl) URL.revokeObjectURL(S.resultUrl);
   if (S.previewUrl) URL.revokeObjectURL(S.previewUrl);
@@ -1117,6 +1131,7 @@ async function exportFast() {
   if (job.cancelled) { openReview(0); return true; }
   if (!made || !made.size) return false;
   const sound = audioKept ? 'avec le son' : S.keepAudio ? "sans le son (il n'a pas pu être repris)" : 'sans le son';
+  if (window.diag) diagPreview(made, await scrubMp4Dates(made));
   finish(await scrubMp4Dates(made), 'video-masquee.mp4', `Fichier MP4, ${sound}, export rapide`);
   return true;
 }
