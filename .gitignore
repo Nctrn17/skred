@@ -8,6 +8,10 @@ test/*
 !test/test-sans-trace.mjs
 !test/make-faces-pair.py
 !test/verifier-tiers.sh
+!test/eval-centerface.py
+!test/eval-nuit.py
+!test/prepare-darkface.py
+!test/darkface-split.json
 
 .vercel
 .env*
