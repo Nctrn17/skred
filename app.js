@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.17';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.18';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -1009,6 +1009,13 @@ async function finish(blob, name, info) {
   S.resultFile = new File([blob], name, { type: blob.type });
   $('result').hidden = isPhoto();
   $('resultImg').hidden = !isPhoto();
+  // Safari sur iPhone refuse parfois de lire dans la page la vidéo qu'il vient de produire (erreur 4), alors que
+  // le fichier enregistré se lit très bien. Plutôt qu'un lecteur cassé, on dit où la regarder.
+  $('result').onerror = () => {
+    if (isPhoto() || !S.previewUrl) return;
+    $('result').hidden = true;
+    $('doneCheck').textContent = "L'aperçu ne s'affiche pas ici. Ouvre la vidéo enregistrée et regarde-la en entier avant de poster.";
+  };
   (isPhoto() ? $('resultImg') : $('result')).src = S.previewUrl;
   $('download').href = S.resultUrl;
   $('download').download = name;
