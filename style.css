@@ -353,3 +353,10 @@ button { font: inherit; color: inherit; }
 .steps svg { width: 24px; height: 24px; }
 .sheet .close { all: unset; cursor: pointer; display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 15px 0; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 16px; }
 .sheet .close:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+
+/* Page des mentions légales */
+.legal { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; font-size: 15px; line-height: 1.55; }
+.legal h1 { font-size: 28px; margin: 24px 0 8px; }
+.legal h2 { font: 600 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .04em; margin: 28px 0 6px; color: var(--mute); }
+.legal p { margin: 0 0 10px; }
+.legal a, .foot a { color: inherit; }

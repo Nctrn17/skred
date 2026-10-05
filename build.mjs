@@ -10,7 +10,7 @@ const dist = join(root, 'dist');
 const sw = readFileSync(join(root, 'sw.js'), 'utf8');
 const listed = [...sw.match(/const FILES = \[([\s\S]*?)\];/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).filter((f) => f !== './');
 const files = [
-  'index.html', 'sw.js', '_headers', 'favicon.ico', 'icon.svg', ...listed,
+  'index.html', 'mentions.html', 'sw.js', '_headers', 'favicon.ico', 'icon.svg', ...listed,
   'models/LICENSE-yunet.txt', 'vendor/fonts/LICENSE.txt', 'vendor/ort/LICENSE.txt', 'vendor/mediabunny/LICENSE.txt',
 ];
 
