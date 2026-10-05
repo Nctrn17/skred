@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.10';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.11';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -361,12 +361,18 @@ async function loadFile(file) {
       S.duration = 0;
     } else {
       video.src = S.srcUrl;
-      // Un premier refus du téléphone n'est pas toujours définitif : on réessaie une fois avant d'abandonner.
-      await once(video, 'loadeddata', 'error', 20000).catch(() => {
-        video.src = S.srcUrl;
-        return once(video, 'loadeddata', 'error', 20000);
-      });
+      await once(video, 'loadedmetadata', 'error', 20000);
       S.start = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      // Sur iPhone, Safari lit l'en-tête puis s'arrête : il ne décode aucune image tant qu'on ne lui demande pas
+      // un instant précis ou la lecture. On lui demande le tout début ; s'il ne répond pas, une lecture éclair.
+      if (video.readyState < 2) {
+        const frame = once(video, 'loadeddata', 'error', 20000);
+        video.currentTime = S.start + 0.001;
+        const late = setTimeout(() => {
+          if (video.readyState < 2) video.play().then(() => { video.pause(); video.currentTime = S.start; }).catch(() => {});
+        }, 3000);
+        await frame.finally(() => clearTimeout(late));
+      }
       if (!Number.isFinite(video.duration)) {
         // Certains fichiers n'annoncent pas leur durée : on force le navigateur à la chercher.
         video.currentTime = 1e7;
