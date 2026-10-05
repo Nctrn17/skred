@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.5';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -215,7 +215,9 @@ async function loadFastExport() {
   if (!('VideoEncoder' in window) || !('VideoDecoder' in window)) return;
   try {
     MB = await import('./vendor/mediabunny/mediabunny.min.mjs');
-    S.fast = await MB.canEncode('avc');
+    // Pas MB.canEncode : il ouvre l'encodeur vidéo du téléphone pour essayer et ne le referme pas. Tant que le
+    // téléphone ne l'a pas libéré, la première vidéo choisie peut être refusée. Ici, on demande sans rien ouvrir.
+    S.fast = (await VideoEncoder.isConfigSupported({ codec: 'avc1.42001f', width: 1280, height: 720, bitrate: 4e6 })).supported === true;
   } catch (e) {
     console.error(e);
   }
@@ -357,7 +359,11 @@ async function loadFile(file) {
       S.duration = 0;
     } else {
       video.src = S.srcUrl;
-      await once(video, 'loadeddata', 'error', 20000);
+      // Un premier refus du téléphone n'est pas toujours définitif : on réessaie une fois avant d'abandonner.
+      await once(video, 'loadeddata', 'error', 20000).catch(() => {
+        video.src = S.srcUrl;
+        return once(video, 'loadeddata', 'error', 20000);
+      });
       S.start = Number.isFinite(video.currentTime) ? video.currentTime : 0;
       if (!Number.isFinite(video.duration)) {
         // Certains fichiers n'annoncent pas leur durée : on force le navigateur à la chercher.
