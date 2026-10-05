@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.13';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.14';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -279,7 +279,11 @@ async function init() {
     $('pickLabel').removeAttribute('aria-disabled');
     $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
     $('footNote').textContent = matchMedia('(pointer: fine)').matches ? 'Rien ne quitte ton ordinateur.' : 'Rien ne quitte ton téléphone.';
-    const file = await sharedFile();
+    let file = await sharedFile();
+    // Essai sur un téléphone de test (adresse avec ?essai) : la vidéo de test du site, sans passer par le sélecteur.
+    if (!file && new URLSearchParams(location.search).has('essai')) {
+      try { file = new File([await (await fetch('t.mov', { cache: 'no-store' })).blob()], 'essai.mov', { type: 'video/quicktime' }); } catch { file = null; }
+    }
     if (file) loadFile(file);
   } catch (e) {
     console.error(e);
@@ -1294,7 +1298,7 @@ $('pickLabel').addEventListener('drop', (e) => {
 });
 // Diagnostic à l'écran (adresse avec ?diag) : pour voir ce qui se passe sur un téléphone sans outils de développeur.
 // Le journal survit à un rechargement de la page.
-if (new URLSearchParams(location.search).has('diag')) {
+if (/[?&](diag|essai)/.test(location.search)) {
   const box = document.createElement('pre');
   box.style.cssText = 'position:fixed;left:0;right:0;top:0;max-height:30vh;pointer-events:none;overflow:auto;margin:0;padding:6px;font:10px/1.3 monospace;background:#000c;color:#0f0;z-index:99;white-space:pre-wrap';
   document.body.append(box);
