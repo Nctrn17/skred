@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.9';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.10';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -185,12 +185,12 @@ function startWorker() {
       const m = e.data;
       if (m.type === 'ready') { clearTimeout(giveUp); resolve(runner); return; }
       const p = pending.get(m.id);
-      if (m.type === 'error' && !p) { clearTimeout(giveUp); w.terminate(); resolve(null); return; }
+      if (m.type === 'error' && !p) { if (window.diag) window.diag('worker erreur : ' + m.message); clearTimeout(giveUp); w.terminate(); resolve(null); return; }
       if (!p) return;
       pending.delete(m.id);
       if (m.type === 'done') p.ok(m.boxes); else p.ko(new Error(m.message));
     };
-    w.onerror = () => { clearTimeout(giveUp); resolve(null); };
+    w.onerror = (e) => { if (window.diag) window.diag(`worker onerror : ${e.message} ${e.filename}:${e.lineno}`); clearTimeout(giveUp); resolve(null); };
     w.postMessage({ type: 'init' });
   });
 }
@@ -283,7 +283,7 @@ async function init() {
     if (file) loadFile(file);
   } catch (e) {
     console.error(e);
-    if (window.diag) window.diag('init échoue : ' + (e && (e.stack || e.message || e)));
+    if (window.diag) window.diag('init échoue : ' + (e && e.message) + ' | ' + String(e && e.stack).slice(0, 300));
     $('pickText').textContent = 'Outil indisponible';
     fail($('homeError'), "L'outil n'a pas pu se charger sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
   }
