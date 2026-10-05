@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.7';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.8';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -345,6 +345,7 @@ const frameTime = (i) => Math.min((i + 0.5) / S.fps, Math.max(0, S.duration - 0.
 const frameIndex = (t) => clamp(Math.floor(t * S.fps), 0, Math.max(0, S.frames.length - 1));
 
 async function loadFile(file) {
+  if (window.diag) window.diag('loadFile ' + file.type + ' ' + file.size);
   resetAll();
   $('homeError').hidden = true;
   S.kind = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name) ? 'photo' : 'video';
@@ -374,6 +375,7 @@ async function loadFile(file) {
       w = video.videoWidth;
       h = video.videoHeight;
       S.duration = video.duration;
+      if (window.diag) window.diag(`lu ${w}x${h} ${S.duration}s fast=${S.fast}`);
       // L'export rapide lit le fichier lui-même : si sa fin tombe plus tard que ce qu'annonce le navigateur,
       // on analyse jusque-là. Analyser un peu trop loin ne coûte rien, pas assez laisserait des images sans masque.
       if (S.fast) {
@@ -389,7 +391,8 @@ async function loadFile(file) {
       }
     }
     if (!w || !h) throw new Error('illisible');
-  } catch {
+  } catch (e) {
+    if (window.diag) window.diag('échec lecture : ' + (e && e.message));
     fail($('homeError'), "Ton navigateur n'arrive pas à lire ce fichier. Essaie avec un autre, ou enregistre-le dans un autre format.");
     return;
   }
@@ -399,6 +402,7 @@ async function loadFile(file) {
   S.H = Math.round(h * k / 2) * 2;
   for (const c of [view, work, preview]) { c.width = S.W; c.height = S.H; }
 
+  if (window.diag) window.diag('analyse');
   show('scan');
   $('scanBar').style.height = '0';
   $('scanText').textContent = '0%';
@@ -1279,6 +1283,32 @@ $('pickLabel').addEventListener('drop', (e) => {
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (f && !$('file').disabled) loadFile(f);
 });
+// Diagnostic à l'écran (adresse avec ?diag) : pour voir ce qui se passe sur un téléphone sans outils de développeur.
+// Le journal survit à un rechargement de la page.
+if (new URLSearchParams(location.search).has('diag')) {
+  const box = document.createElement('pre');
+  box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;margin:0;padding:6px;font:10px/1.3 monospace;background:#000c;color:#0f0;z-index:99;white-space:pre-wrap';
+  document.body.append(box);
+  const t0 = performance.now();
+  const log = (m) => {
+    let all = '';
+    try { all = (sessionStorage.getItem('diag') || '') + `${((performance.now() - t0) / 1000).toFixed(1)} ${m}\n`; sessionStorage.setItem('diag', all); } catch { all += m + '\n'; }
+    box.textContent = all;
+    box.scrollTop = 1e9;
+  };
+  window.diag = log;
+  log(`--- chargement, sw=${!!(navigator.serviceWorker && navigator.serviceWorker.controller)} nav=${performance.getEntriesByType('navigation')[0]?.type}`);
+  for (const ev of ['pagehide', 'pageshow', 'visibilitychange', 'focus', 'blur']) window.addEventListener(ev, () => log(ev + ' ' + document.visibilityState));
+  $('file').addEventListener('click', () => log('clic sélecteur'));
+  $('file').addEventListener('cancel', () => log('sélecteur annulé'));
+  $('file').addEventListener('input', () => log('input ' + $('file').files.length));
+  $('file').addEventListener('change', () => { const f = $('file').files[0]; log(`change ${f ? `${f.name} ${f.type} ${f.size}` : 'vide'}`); });
+  for (const ev of ['loadstart', 'loadedmetadata', 'loadeddata', 'error', 'stalled', 'suspend', 'abort', 'emptied']) video.addEventListener(ev, () => log('video ' + ev + (ev === 'error' && video.error ? ' ' + video.error.code + ' ' + video.error.message : '')));
+  window.addEventListener('error', (e) => log('ERREUR ' + e.message));
+  window.addEventListener('unhandledrejection', (e) => log('REJET ' + (e.reason && e.reason.message)));
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('controllerchange', () => log('controllerchange'));
+}
+
 $('file').addEventListener('change', (e) => {
   const f = e.target.files && e.target.files[0];
   if (f) loadFile(f);
