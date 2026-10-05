@@ -32,7 +32,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-05.6';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-05.7';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -227,18 +227,6 @@ async function loadFastExport() {
 // d'autoriser le choix d'un fichier : ainsi, plus aucune requête ne part une fois le fichier choisi.
 async function keepOffline() {
   if (!('serviceWorker' in navigator)) return;
-  // iPhone : avec la copie hors ligne, le fichier choisi n'arrive pas (en navigation privée, sans copie, tout marche).
-  // On la retire et on ne la remet pas.
-  const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
-    try {
-      for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
-      for (const k of await caches.keys()) await caches.delete(k);
-    } catch (e) {
-      console.error(e);
-    }
-    return;
-  }
   try {
     await navigator.serviceWorker.register('sw.js');
     await Promise.race([navigator.serviceWorker.ready, sleep(15000)]);
