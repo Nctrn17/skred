@@ -39,7 +39,7 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
   skred.fr lui-même ne sert que des fichiers statiques : aucun code côté serveur ne pourrait recevoir une vidéo.
 - **Le test automatique** (voir « Tester ») échoue si une seule requête part après le chargement de la page.
 - **Le code est public.** Les envois réseau se cherchent en quelques secondes : `grep -rn "fetch(" app.js sw.js`.
-- **Le site sert ce code-là.** `bash test/verifier-site.sh` télécharge chaque fichier de skred.fr et le compare,
+- **Le site sert ce code-là.** `bash outils/verifier-site.sh` télécharge chaque fichier de skred.fr et le compare,
   à l'octet près, au dernier commit du dépôt (voir « Tester »).
 
 ## Comment c'est fait
@@ -59,15 +59,23 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
 - Tout est servi par le site lui-même, et une politique de sécurité (`_headers`) interdit au navigateur
   toute connexion vers un autre site.
 
+## Rangement
+
+- À la racine : le site lui-même (`index.html`, `app.js`, `style.css`…), avec `models/` (le modèle de détection),
+  `vendor/` (bibliothèques et polices) et `icons/`.
+- `outils/` : construire le site publié, le servir en local, vérifier que skred.fr sert bien ce dépôt.
+- `test/` : les tests du site.
+- `entrainement/` : mesure et entraînement du modèle de détection.
+- `android/` et `fastlane/` : l'app Android et les textes de sa fiche.
+
 ## Mettre en ligne
 
 Adresse : https://skred.fr. Hébergé sur Cloudflare (Workers, fichiers statiques seulement, réglages dans `wrangler.jsonc`).
-L'ancienne adresse skred.vercel.app redirige vers skred.fr (`vercel.json`).
 
 Publier :
 
 ```bash
-node build.mjs
+node outils/build.mjs
 npx wrangler deploy
 ```
 
@@ -77,7 +85,7 @@ Dossier `android/` : le site entier rangé dans une app, affiché par une WebVie
 L'app n'a aucune permission, pas même internet. Elle fait ce que le navigateur faisait seul : choisir un fichier,
 enregistrer le résultat dans la galerie (Films/skred, Images/skred), le partager, garder l'écran allumé, et ouvrir
 une vidéo partagée depuis la galerie. Les fichiers du site sont copiés dans l'app à chaque construction,
-d'après la même liste que `build.mjs`. Textes de la fiche : `fastlane/metadata/android/`.
+d'après la même liste que `outils/build.mjs`. Textes de la fiche : `fastlane/metadata/android/`.
 
 Construire (JDK 17 ou plus, SDK Android 36) :
 
@@ -96,7 +104,7 @@ pour l'instant : il refuse les fichiers `.wasm` déjà compilés, comme celui d'
 ## Lancer en local
 
 ```bash
-node dev-server.mjs
+node outils/dev-server.mjs
 ```
 
 Puis ouvrir http://localhost:5173.
@@ -133,22 +141,22 @@ bash test/verifier-tiers.sh
 
 Télécharge ONNX Runtime et Mediabunny depuis npm et vérifie que les fichiers du dépôt sont identiques aux
 originaux, à l'octet près. Seule retouche, refaite par le script : la ligne `sourceMappingURL` de `ort.wasm.min.mjs`
-est vidée. Le modèle, lui, a été réentraîné pour skred : sa recette est dans `test/entrainer-nuit.sh`.
+est vidée. Le modèle, lui, a été réentraîné pour skred : sa recette est dans `entrainement/entrainer-nuit.sh`.
 
 ### Le site en ligne
 
 ```bash
-bash test/verifier-site.sh
+bash outils/verifier-site.sh
 ```
 
-Télécharge chaque fichier servi par skred.fr (la même liste que `build.mjs`) et le compare, à l'octet près,
+Télécharge chaque fichier servi par skred.fr (la même liste que `outils/build.mjs`) et le compare, à l'octet près,
 à sa version dans le dernier commit. Vérifie aussi que l'en-tête `Content-Security-Policy` reçu est celui de `_headers`.
-Autre adresse : `SITE=https://… bash test/verifier-site.sh`.
+Autre adresse : `SITE=https://… bash outils/verifier-site.sh`.
 
 ### Précision de la détection
 
-`test/eval-faces.py` mesure les visages ratés et les faux masques sur deux banques de photos annotées :
-WIDER FACE (validation, de jour) et DARK FACE (de nuit). `test/eval-centerface.py` compare la même règle
+`entrainement/eval-faces.py` mesure les visages ratés et les faux masques sur deux banques de photos annotées :
+WIDER FACE (validation, de jour) et DARK FACE (de nuit). `entrainement/eval-centerface.py` compare la même règle
 à CenterFace, le modèle de [deface](https://github.com/ORB-HD/deface).
 
 ## Limites connues

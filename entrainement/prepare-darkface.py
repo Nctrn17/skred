@@ -1,7 +1,7 @@
 # Prépare l'entraînement de YuNet sur DARK FACE : partage fixe des 6 000 photos (5 000 pour apprendre, 1 000 gardées
 # pour mesurer, jamais vues à l'entraînement), conversion des photos d'entraînement en JPEG et des annotations au
 # format labelv2 de libfacedetection.train (cadre x1 y1 x2 y2 puis 5 points du visage, ici inconnus : -1).
-# Usage : python test/prepare-darkface.py <dossier des banques>
+# Usage : python entrainement/prepare-darkface.py <dossier des banques>
 import json
 import os
 import random

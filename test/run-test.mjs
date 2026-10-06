@@ -1,5 +1,5 @@
 // Test de bout en bout dans Chrome sans fenêtre : analyse, export, contrôle des masques dans le fichier produit.
-// Usage : python test/make-test-video.py (une fois), node dev-server.mjs (dans un autre terminal), puis node test/run-test.mjs
+// Usage : python test/make-test-video.py (une fois), node outils/dev-server.mjs (dans un autre terminal), puis node test/run-test.mjs
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,7 +1,7 @@
 # Pistes pour mieux voir les visages de nuit sans ralentir l'analyse, mesurées sur WIDER FACE (jour) et DARK FACE (nuit) :
 #  1. éclaircir les images sombres avant YuNet (presque gratuit) ;
 #  2. CenterFace sur une image réduite (plus rapide, au prix des tout petits visages).
-# Usage : python test/eval-nuit.py <dossier des banques> <chemin de centerface.onnx>
+# Usage : python entrainement/eval-nuit.py <dossier des banques> <chemin de centerface.onnx>
 import importlib.util
 import json
 import os

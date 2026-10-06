@@ -1,5 +1,5 @@
 // skred : masque les visages d'une vidéo ou d'une photo, entièrement dans le navigateur.
-// Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans vercel.json).
+// Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans _headers).
 import { createDetector, detectBoth, neededScore } from './detector.js';
 
 // Ouvert en http (certains navigateurs, comme Opera sur iPhone, ne passent pas tout seuls en https) : le navigateur
@@ -13,13 +13,13 @@ const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3;        // seuil de détection bas : on préfère trop masquer que pas assez
 // Les petits visages (moins de 12 % du petit côté) sont presque tous les ratés. Un petit carré posé à tort gêne peu :
-// pour eux, le seuil descend à 0,2 (visages ratés de jour -26 %, de nuit -34 %, mesuré par test/eval-faces.py).
+// pour eux, le seuil descend à 0,2 (visages ratés de jour -26 %, de nuit -34 %, mesuré par entrainement/eval-faces.py).
 const SMALL_SCORE = 0.2;
 // La nuit, le détecteur croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue.
 // Un grand cadre (plus de 12 % du petit côté de l'image) doit donc être soit très sûr (jusqu'à 0,85 à partir de 25 %),
 // soit retrouvé sur l'image réduite au tiers (voir detectBoth). Et un gros plan bien reconnu sur l'image réduite
 // (0,7 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
-// visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
+// visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir entrainement/eval-faces.py.
 const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.85, LOW_SCORE = 0.7;
 // Score minimal d'un cadre retrouvé sur l'image réduite (seconde passe) pour être retenu.
 const JUDGE = { confirm: MIN_SCORE };
@@ -38,7 +38,7 @@ const TRACK = {
   match: 1.6,       // distance maximale entre deux images, en largeurs de visage
   lowMatch: 0.6,    // même chose pour une détection très incertaine
   // Taille maximale d'une détection incertaine qui prolonge un masque, en fois la dernière taille sûre. Mesuré sur
-  // 36 vidéos réelles (test/eval-reel.mjs) : surface masquée sans visage 20 % -> 16 % ; les 2 visages de plus laissés
+  // 36 vidéos réelles (entrainement/eval-reel.mjs) : surface masquée sans visage 20 % -> 16 % ; les 2 visages de plus laissés
   // visibles sur 1 012 n'étaient couverts que par hasard, par un pavé posé à côté.
   lowGrow: 1.5,
   minReach: 0.02,   // distance minimale tolérée (part du petit côté de l'image), pour les très petits visages

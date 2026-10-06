@@ -1,11 +1,11 @@
 // Prépare le dossier dist/ publié sur Cloudflare : seulement les fichiers du site, rien d'autre
-// (ni les tests, ni le réel, ni ce script). La liste vient de sw.js, qui garde déjà ces fichiers hors ligne.
-// Usage : node build.mjs
+// (ni les tests, ni l'entraînement, ni les outils). La liste vient de sw.js, qui garde déjà ces fichiers hors ligne.
+// Usage : node outils/build.mjs
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = dirname(fileURLToPath(import.meta.url));
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, 'dist');
 const sw = readFileSync(join(root, 'sw.js'), 'utf8');
 const listed = [...sw.match(/const FILES = \[([\s\S]*?)\];/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).filter((f) => f !== './');

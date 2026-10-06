@@ -1,12 +1,12 @@
-// Petit serveur local pour tester le site (node dev-server.mjs). Non utilisé en production.
+// Petit serveur local pour tester le site (node outils/dev-server.mjs). Non utilisé en production.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('.', import.meta.url));
+const root = fileURLToPath(new URL('..', import.meta.url));
 const port = Number(process.env.PORT) || 5173;
-const csp = (await readFile(new URL('_headers', import.meta.url), 'utf8')).match(/Content-Security-Policy: (.+)/)[1].trim();
+const csp = (await readFile(new URL('../_headers', import.meta.url), 'utf8')).match(/Content-Security-Policy: (.+)/)[1].trim();
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',

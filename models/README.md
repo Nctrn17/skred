@@ -4,11 +4,11 @@ Base : YuNet_n de [libfacedetection.train](https://github.com/ShiqiYu/libfacedet
 `LICENSE-yunet.txt`), même famille et mêmes sorties que le YuNet d'OpenCV.
 
 `yunet.onnx` part des poids publiés (`weights/yunet_n.pth`) et a été réentraîné 40 passes sur WIDER FACE
-(photos de jour) et DARK FACE (photos de nuit). Recette complète : `test/entrainer-nuit.sh`, après
-`test/prepare-darkface.py`. 1 000 photos de DARK FACE (`test/darkface-split.json`) n'ont jamais servi à
+(photos de jour) et DARK FACE (photos de nuit). Recette complète : `entrainement/entrainer-nuit.sh`, après
+`entrainement/prepare-darkface.py`. 1 000 photos de DARK FACE (`entrainement/darkface-split.json`) n'ont jamais servi à
 l'entraînement et servent à la mesure.
 
-Mesuré avec la règle du site (`test/eval-faces.py`), contre l'ancien modèle (YuNet 2023mar d'OpenCV Zoo) :
+Mesuré avec la règle du site (`entrainement/eval-faces.py`), contre l'ancien modèle (YuNet 2023mar d'OpenCV Zoo) :
 
 | | Visages ratés de nuit (1 287) | Visages ratés de jour (14 954) | Grands masques sans visage, jour |
 |---|---|---|---|

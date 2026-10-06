@@ -1,8 +1,8 @@
 # Banc « vidéos réelles » : extraits de 8 s tirés de vraies vidéos, 5 images par extrait où les visages sont
-# pré-repérés par un détecteur lent et précis (SCRFD-10G d'InsightFace), puis corrigés à la main (test/annoter-reel.py).
-# La mesure elle-même (test/eval-reel.mjs) fait tourner le site sur chaque extrait et regarde, sur ces images,
+# pré-repérés par un détecteur lent et précis (SCRFD-10G d'InsightFace), puis corrigés à la main (entrainement/annoter-reel.py).
+# La mesure elle-même (entrainement/eval-reel.mjs) fait tourner le site sur chaque extrait et regarde, sur ces images,
 # si chaque visage est couvert par un masque : suivi d'une image à l'autre compris, comme pour un vrai utilisateur.
-# Usage : python test/prepare-reel.py <dossier des banques> <dossier(s) de vidéos>...
+# Usage : python entrainement/prepare-reel.py <dossier des banques> <dossier(s) de vidéos>...
 # (det_10g.onnx : dans buffalo_l.zip, https://github.com/deepinsight/insightface/releases/tag/v0.7 ; à poser dans <banques>/ref/)
 import json
 import os

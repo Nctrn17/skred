@@ -3,8 +3,8 @@
 # et comparé à sa version dans le dernier commit (pas aux fichiers modifiés sur le disque).
 # Vérifie aussi que la politique de sécurité envoyée par le site est celle de _headers.
 # Besoin : git, curl.
-# Usage : bash test/verifier-site.sh   (depuis la racine du dépôt)
-#         SITE=https://autre.adresse bash test/verifier-site.sh
+# Usage : bash outils/verifier-site.sh   (depuis la racine du dépôt)
+#         SITE=https://autre.adresse bash outils/verifier-site.sh
 set -e
 site=${SITE:-https://skred.fr}
 tmp=$(mktemp -d)

@@ -1,32 +1,19 @@
 node_modules/
 .vercel
-# Dans test/, seuls les scripts sont suivis : jamais de vidéos ni de photos de vraies personnes.
-test/*
-!test/run-test.mjs
-!test/make-test-video.py
-!test/eval-faces.py
-!test/test-sans-trace.mjs
-!test/make-faces-pair.py
-!test/verifier-tiers.sh
-!test/verifier-site.sh
-!test/eval-centerface.py
-!test/eval-nuit.py
-!test/prepare-darkface.py
-!test/darkface-split.json
-!test/entrainer-nuit.sh
-!test/entrainer-v2.sh
-!test/init-weights.patch
-!test/distiller-wider.py
-!test/prepare-reel.py
-!test/annoter-reel.py
-!test/eval-reel.mjs
-
-.vercel
 .env*
 
-# Vidéo du réel : refaite par node reel/render.mjs
-reel/*.mp4
+# Dans test/ et entrainement/, seuls les scripts sont suivis : jamais de vidéos ni de photos de vraies personnes.
+test/*
+!test/*.mjs
+!test/*.py
+!test/*.sh
+entrainement/*
+!entrainement/*.mjs
+!entrainement/*.py
+!entrainement/*.sh
+!entrainement/*.patch
+!entrainement/darkface-split.json
 
-# Dossier publié, refait par node build.mjs
+# Dossier publié, refait par node outils/build.mjs
 dist/
 .wrangler/

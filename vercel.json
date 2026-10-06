@@ -1,5 +1,0 @@
-{
-  "redirects": [
-    { "source": "/(.*)", "destination": "https://skred.fr/$1", "permanent": true }
-  ]
-}

@@ -4,7 +4,7 @@
 # Lancé sur un serveur avec carte graphique (une RTX louée, environ 2 h) :
 #   git clone https://github.com/ShiqiYu/libfacedetection.train.git /root/yt, avec une petite retouche de
 #   yunet_train/cli/train.py : option --init-weights, qui charge les poids publiés (weights/yunet_n.pth) avant d'apprendre ;
-#   /root/pack : sortie de test/prepare-darkface.py (photos DARK FACE en JPEG, annotations labelv2-dark.txt).
+#   /root/pack : sortie de entrainement/prepare-darkface.py (photos DARK FACE en JPEG, annotations labelv2-dark.txt).
 set -e
 cd /root/yt
 mkdir -p /root/data/imgs

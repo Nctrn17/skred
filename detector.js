@@ -69,7 +69,7 @@ export async function createDetector(base) {
     // Image très sombre (luminosité moyenne sous DARK) : le modèle voit mal dans le noir. On l'analyse deux fois,
     // telle quelle et éclaircie, et on réunit les visages trouvés : l'éclaircie révèle les visages noyés dans le noir,
     // l'originale garde les tout petits que l'éclaircissement noie dans le bruit. Mesuré sur 6 000 photos de nuit
-    // annotées (DARK FACE) : visages ratés divisés par plus de 3, sans effet sur les photos de jour (test/eval-nuit.py).
+    // annotées (DARK FACE) : visages ratés divisés par plus de 3, sans effet sur les photos de jour (entrainement/eval-nuit.py).
     let sum = 0;
     for (let y = 0; y < dh; y++) for (let x = 0, p = y * pw * 4; x < dw; x++, p += 4) sum += rgba[p] + rgba[p + 1] + rgba[p + 2];
     const passes = sum / (3 * dw * dh) < DARK ? [null, NIGHT_LUT] : [null];

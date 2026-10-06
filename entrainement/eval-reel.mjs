@@ -1,7 +1,7 @@
-// Mesure sur vidéos réelles : le site analyse chaque extrait de test/prepare-reel.py comme pour un vrai utilisateur
-// (suivi d'une image à l'autre compris), puis on regarde, sur les images corrigées à la main (test/annoter-reel.py),
-// si chaque visage est couvert par un masque (70 % de sa surface au moins, comme test/eval-faces.py).
-// Usage : node dev-server.mjs (autre terminal), puis node test/eval-reel.mjs [dossier des banques] [nom du résultat]
+// Mesure sur vidéos réelles : le site analyse chaque extrait de entrainement/prepare-reel.py comme pour un vrai utilisateur
+// (suivi d'une image à l'autre compris), puis on regarde, sur les images corrigées à la main (entrainement/annoter-reel.py),
+// si chaque visage est couvert par un masque (70 % de sa surface au moins, comme entrainement/eval-faces.py).
+// Usage : node outils/dev-server.mjs (autre terminal), puis node entrainement/eval-reel.mjs [dossier des banques] [nom du résultat]
 // Les extraits sont copiés dans test/reel/ (non suivi par git) pour que le serveur local les serve.
 import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,8 +21,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const ref = JSON.parse(readFileSync(join(DATA, 'reel', REEL), 'utf8')).filter((e) => e.checked || !ONLY_CHECKED);
 const clips = [...new Set(ref.map((e) => e.clip))];
-mkdirSync(join(here, 'reel'), { recursive: true });
-for (const c of clips) if (!existsSync(join(here, 'reel', c))) copyFileSync(join(DATA, 'reel', 'clips', c), join(here, 'reel', c));
+mkdirSync(join(here, '..', 'test', 'reel'), { recursive: true });
+for (const c of clips) if (!existsSync(join(here, '..', 'test', 'reel', c))) copyFileSync(join(DATA, 'reel', 'clips', c), join(here, '..', 'test', 'reel', c));
 
 const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'skred-'))}`,

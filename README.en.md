@@ -41,7 +41,7 @@ You don't have to take our word for it. Each point below can be checked without 
   skred.fr itself only serves static files: there is no server-side code that could receive a video.
 - **The automated test** (see "Testing") fails if a single request goes out after the page has loaded.
 - **The code is public.** Network calls can be found in seconds: `grep -rn "fetch(" app.js sw.js`.
-- **The website serves this code.** `bash test/verifier-site.sh` downloads every file from skred.fr and compares it,
+- **The website serves this code.** `bash outils/verifier-site.sh` downloads every file from skred.fr and compares it,
   byte for byte, with the latest commit of the repository (see "Testing").
 
 ## How it works
@@ -60,12 +60,21 @@ You don't have to take our word for it. Each point below can be checked without 
 - Everything is served by the site itself, and a security policy (`_headers`) forbids the browser
   from connecting to any other site.
 
+## Layout
+
+- At the root: the website itself (`index.html`, `app.js`, `style.css`…), with `models/` (the detection model),
+  `vendor/` (libraries and fonts) and `icons/`.
+- `outils/`: build the published site, serve it locally, check that skred.fr serves this repository.
+- `test/`: the website tests.
+- `entrainement/`: measuring and training the detection model.
+- `android/` and `fastlane/`: the Android app and its store listing texts.
+
 ## Deploying
 
 Hosted on Cloudflare (Workers, static assets only, settings in `wrangler.jsonc`).
 
 ```bash
-node build.mjs
+node outils/build.mjs
 npx wrangler deploy
 ```
 
@@ -75,7 +84,7 @@ Folder `android/`: the whole site packaged in an app, displayed by a WebView (`M
 The app has no permissions, not even internet. It does what the browser did on its own: pick a file,
 save the result to the gallery (Movies/skred, Pictures/skred), share it, keep the screen on, and open
 a video shared from the gallery. The site files are copied into the app at each build,
-from the same list as `build.mjs`. Store listing texts: `fastlane/metadata/android/`.
+from the same list as `outils/build.mjs`. Store listing texts: `fastlane/metadata/android/`.
 
 Build (JDK 17 or later, Android SDK 36):
 
@@ -94,7 +103,7 @@ for now: it rejects prebuilt `.wasm` files, such as ONNX Runtime's.
 ## Running locally
 
 ```bash
-node dev-server.mjs
+node outils/dev-server.mjs
 ```
 
 Then open http://localhost:5173.
@@ -131,22 +140,22 @@ bash test/verifier-tiers.sh
 
 Downloads ONNX Runtime and Mediabunny from npm and checks that the files in the repository are
 byte-for-byte identical to the originals. One edit, redone by the script: the `sourceMappingURL` line of
-`ort.wasm.min.mjs` is emptied. The model was retrained for skred: its recipe is in `test/entrainer-nuit.sh`.
+`ort.wasm.min.mjs` is emptied. The model was retrained for skred: its recipe is in `entrainement/entrainer-nuit.sh`.
 
 ### The live website
 
 ```bash
-bash test/verifier-site.sh
+bash outils/verifier-site.sh
 ```
 
-Downloads every file served by skred.fr (the same list as `build.mjs`) and compares it, byte for byte,
+Downloads every file served by skred.fr (the same list as `outils/build.mjs`) and compares it, byte for byte,
 with its version in the latest commit. Also checks that the `Content-Security-Policy` header received is the one in `_headers`.
-Other address: `SITE=https://… bash test/verifier-site.sh`.
+Other address: `SITE=https://… bash outils/verifier-site.sh`.
 
 ### Detection accuracy
 
-`test/eval-faces.py` measures missed faces and false masks on two annotated datasets:
-WIDER FACE (validation set, daytime) and DARK FACE (night). `test/eval-centerface.py` compares
+`entrainement/eval-faces.py` measures missed faces and false masks on two annotated datasets:
+WIDER FACE (validation set, daytime) and DARK FACE (night). `entrainement/eval-centerface.py` compares
 the same rule with CenterFace, the model used by [deface](https://github.com/ORB-HD/deface).
 
 ## Known limitations
