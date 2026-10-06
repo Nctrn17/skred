@@ -12,6 +12,6 @@ skred covers every face in a video or photo with a solid black square before you
 The app requests no permissions at all, not even internet access. No account, no analytics, no ads.
 
 <b>What skred does not do</b>
-It does not hide clothes, tattoos, voices or places. It can miss a face: always watch the whole result before posting.
+Audio can be kept, scrambled or muted. Scrambling distorts the whole track, including voice and background sounds, but does not guarantee anonymity: a voice may still be recognisable. The app does not hide clothes, tattoos or places. It can miss a face: always watch the whole result before posting.
 
 The interface is in French. Face detection: YuNet model (OpenCV), run on the phone by ONNX Runtime. Source code under AGPL-3.0. Also available without installing at https://skred.fr.

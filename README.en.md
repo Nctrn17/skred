@@ -17,11 +17,13 @@ can be undone by AI. A solid box cannot: there is no image left underneath.
 1. You pick a video or a photo.
 2. The video is analysed 30 times per second, and a black box (or an emoji on a black box) is placed on every face, on every frame.
 3. You check: add a mask where a face was missed, remove one placed by mistake.
-4. The file is fully re-encoded: the location, date and phone model stored in the original file are gone.
+4. You can keep, scramble or mute the audio. Scrambling distorts the whole track (voice and background) and exports in real time.
+5. The file is fully re-encoded: the location, date and phone model stored in the original file are gone.
 
 ## What it does not do
 
-- It does not hide clothes, tattoos, voices or places.
+- Audio scrambling is a sound effect, not a guarantee of anonymity: a voice may still be recognisable. It affects the whole track, including background sounds.
+- It does not hide clothes, tattoos or places.
 - It can miss a face. Checking by eye before posting is still required.
 - It does not promise complete protection.
 

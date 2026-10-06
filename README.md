@@ -15,11 +15,13 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 1. Tu choisis une vidéo ou une photo.
 2. La vidéo est analysée 30 fois par seconde, et un carré noir (ou un émoji posé sur un carré noir) est placé sur chaque visage, sur toutes les images.
 3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort.
-4. Le fichier est entièrement refait : le lieu, la date et le modèle du téléphone du fichier d'origine disparaissent.
+4. Tu peux garder le son, le brouiller ou le couper. Le brouillage déforme toute la piste (voix et ambiance) et exporte à vitesse réelle.
+5. Le fichier est entièrement refait : le lieu, la date et le modèle du téléphone du fichier d'origine disparaissent.
 
 ## Ce que l'outil ne fait pas
 
-- Il ne cache ni les vêtements, ni les tatouages, ni la voix, ni le lieu.
+- Le brouillage audio est une déformation sonore, pas une garantie d'anonymat : une voix peut rester reconnaissable. Il s'applique à toute la piste, ambiance comprise.
+- Il ne cache ni les vêtements, ni les tatouages, ni le lieu.
 - Il peut rater un visage. La vérification à l'œil avant de poster reste indispensable.
 - Il ne promet pas une protection totale.
 

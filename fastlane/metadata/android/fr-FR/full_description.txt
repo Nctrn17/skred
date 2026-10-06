@@ -12,6 +12,6 @@ skred masque les visages d'une vidéo ou d'une photo avant que tu la postes. Un 
 L'app n'a aucune permission, pas même l'accès à internet. Pas de compte, pas de statistiques, pas de publicité.
 
 <b>Ce que skred ne fait pas</b>
-Il ne cache ni les vêtements, ni les tatouages, ni la voix, ni le lieu. Il peut rater un visage : regarde toujours le résultat en entier avant de poster.
+Le son peut être gardé, brouillé ou coupé. Le brouillage déforme toute la piste, voix et ambiance comprises, mais ne garantit pas l'anonymat : une voix peut rester reconnaissable. L'app ne cache pas les vêtements, les tatouages ni le lieu. Elle peut rater un visage : regarde toujours le résultat en entier avant de poster.
 
 Détection des visages : modèle YuNet (OpenCV), exécuté sur le téléphone par ONNX Runtime. Code source sous licence AGPL-3.0. Aussi disponible sans installation sur https://skred.fr.
