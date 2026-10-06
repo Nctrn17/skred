@@ -16,7 +16,8 @@ let engine = null;
 const ON_GPU = { encoder: 'gpu-buffer', memory_attention: 'gpu-buffer' };
 
 /** Charge ONNX Runtime et les modèles demandés (tous par défaut). `progress(p)` reçoit l'avancement entre 0 et 1. */
-export async function loadEngine(base, progress, names = ['encoder', 'decoder_point', 'decoder_init', 'decoder_track', 'memory_encoder', 'memory_attention']) {
+export const NAMES = ['encoder', 'decoder_point', 'decoder_init', 'decoder_track', 'memory_encoder', 'memory_attention'];
+export async function loadEngine(base, progress, names = NAMES) {
   if (!engine) {
     let ort = null, gpu = false;
     if ('gpu' in navigator) {

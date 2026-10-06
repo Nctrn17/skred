@@ -280,28 +280,33 @@ async function sharedFile() {
   });
 }
 
+// Moteurs de détection : un par fil d'exécution, ou un seul dans la page si les fils ne marchent pas.
+async function startRunners() {
+  const cores = navigator.hardwareConcurrency || 2;
+  // Sur iPhone, Safari donne peu de mémoire à une page : chaque moteur de détection en réserve une part,
+  // au-delà de deux le démarrage échoue (« Out of memory »), surtout sur les modèles anciens.
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const wanted = clamp(cores - 1, 1, ios ? 2 : 3);
+  const noWorkers = new URLSearchParams(location.search).has('simple');
+  const workers = noWorkers ? [] : (await Promise.all(Array.from({ length: wanted }, startWorker))).filter(Boolean);
+  S.parallel = workers.length;
+  return workers.length ? workers : [await localRunner()];
+}
+
+// Les moteurs ne servent qu'à l'analyse d'un fichier. « Masquer une personne » les arrête pour avoir la place
+// de ses propres modèles (sinon Safari ferme l'onglet sur iPhone) ; ils sont relancés avant l'analyse suivante.
+function stopRunners() { for (const r of S.runners) if (r.stop) r.stop(); S.runners = []; }
+
 async function init() {
   try {
-    const cores = navigator.hardwareConcurrency || 2;
-    // Sur iPhone, Safari donne peu de mémoire à une page : chaque moteur de détection en réserve une part,
-    // au-delà de deux le démarrage échoue (« Out of memory »), surtout sur les modèles anciens.
-    const ua = navigator.userAgent;
-    const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-    const wanted = clamp(cores - 1, 1, ios ? 2 : 3);
-    const noWorkers = new URLSearchParams(location.search).has('simple');
     // Détecteur, export rapide et copie hors ligne se préparent en même temps ; le choix d'un fichier n'est permis
     // qu'une fois les trois prêts, pour qu'aucune requête ne parte ensuite.
-    const [workers] = await Promise.all([
-      noWorkers ? [] : Promise.all(Array.from({ length: wanted }, startWorker)).then((w) => w.filter(Boolean)),
-      loadFastExport(),
-      ANDROID ? androidHello() : keepOffline(),
-    ]);
-    S.runners = workers.length ? workers : [await localRunner()];
+    [S.runners] = await Promise.all([startRunners(), loadFastExport(), ANDROID ? androidHello() : keepOffline()]);
     // Safari garde la page quittée en mémoire, moteurs compris : un rechargement doublerait la mémoire prise.
     // On arrête les moteurs en quittant la page ; si Safari la ressort de sa mémoire, on la recharge.
     addEventListener('pagehide', () => { for (const r of S.runners) if (r.stop) r.stop(); });
     addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
-    S.parallel = workers.length;
     $('file').disabled = false;
     $('pickLabel').removeAttribute('aria-disabled');
     $('pickText').innerHTML = matchMedia('(pointer: fine)').matches ? 'Glisse une vidéo ou une photo,<br>ou clique pour choisir' : 'Choisir une vidéo<br>ou une photo';
@@ -475,6 +480,10 @@ async function scan() {
   const job = { cancelled: false };
   S.job = job;
   await keepAwake(true);
+  if (!S.runners.length) {
+    if (PERSON) await PERSON.unload(PERSON.NAMES);
+    S.runners = await startRunners();
+  }
 
   // On regarde 30 images par seconde. Une vidéo à 60 images par seconde est regardée une image sur deux :
   // les masques couvrent quand même toutes les images, puisqu'ils débordent de plusieurs images autour de chaque visage.
@@ -1040,6 +1049,7 @@ async function previewPerson(from) {
     hint.textContent = 'Chargement du modèle…';
     crumb({ at: Date.now(), etape: 'chargement (aperçu)', taille: `${S.W}x${S.H}` });
     PERSON = PERSON || await import('./person.js');
+    stopRunners();
     await PERSON.loadEngine(new URL('.', location.href).href, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; },
       ['encoder', from.length === 2 ? 'decoder_point' : 'decoder_init']);
     hint.textContent = 'Recherche de la zone…';
@@ -1171,6 +1181,7 @@ async function maskPerson(box, pick = 0, chosen = null) {
   try {
     hint.textContent = 'Chargement du modèle…';
     PERSON = PERSON || await import('./person.js');
+    stopRunners();
     const base = new URL('.', location.href).href;
     crumb({ at: Date.now(), etape: 'chargement (suivi)', taille: `${S.W}x${S.H}` });
     // pendant le suivi, seuls les modèles du suivi restent chargés (ceux du toucher et du cadre reviendront au prochain aperçu)
