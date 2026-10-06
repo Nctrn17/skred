@@ -11,34 +11,45 @@ const MEAN = [0.485, 0.456, 0.406], STD = [0.229, 0.224, 0.225];
 const GROW = 3;             // la silhouette est élargie de 3 pixels (sur 256) : environ 1 % de l'image de marge
 
 let engine = null;
+// Sur la carte graphique, les résultats de l'encodeur et de l'attention à la mémoire y restent (« gpu-buffer ») : ils
+// repartent tels quels vers le module suivant, au lieu de faire l'aller-retour par la mémoire du navigateur (16 Mo par image).
+const ON_GPU = { encoder: 'gpu-buffer', memory_attention: 'gpu-buffer' };
 
-/** Charge ONNX Runtime et les cinq modèles. `progress(p)` reçoit l'avancement entre 0 et 1. */
-export async function loadEngine(base, progress) {
-  if (engine) return engine;
-  let ort = null, gpu = false;
-  if ('gpu' in navigator) {
-    try {
-      gpu = !!(await navigator.gpu.requestAdapter());
-      if (gpu) {
-        ort = await import(base + 'vendor/ort-webgpu/ort.webgpu.min.mjs');
-        ort.env.wasm.wasmPaths = base + 'vendor/ort-webgpu/';
-      }
-    } catch { gpu = false; }
+/** Charge ONNX Runtime et les modèles demandés (tous par défaut). `progress(p)` reçoit l'avancement entre 0 et 1. */
+export async function loadEngine(base, progress, names = ['encoder', 'decoder_point', 'decoder_init', 'decoder_track', 'memory_encoder', 'memory_attention']) {
+  if (!engine) {
+    let ort = null, gpu = false;
+    if ('gpu' in navigator) {
+      try {
+        gpu = !!(await navigator.gpu.requestAdapter());
+        if (gpu) {
+          ort = await import(base + 'vendor/ort-webgpu/ort.webgpu.min.mjs');
+          ort.env.wasm.wasmPaths = base + 'vendor/ort-webgpu/';
+        }
+      } catch { gpu = false; }
+    }
+    if (!gpu) {
+      ort = await import(base + 'vendor/ort/ort.wasm.min.mjs');
+      ort.env.wasm.wasmPaths = base + 'vendor/ort/';
+    }
+    ort.env.wasm.numThreads = 1;
+    const c = await (await fetch(base + 'models/edgetam/constants.json')).json();
+    engine = { ort, s: {}, gpu, base, tpos: c.maskmem_tpos_enc.map((r) => Float32Array.from(r)) };
   }
-  if (!gpu) {
-    ort = await import(base + 'vendor/ort/ort.wasm.min.mjs');
-    ort.env.wasm.wasmPaths = base + 'vendor/ort/';
+  const { ort, s, gpu } = engine;
+  const missing = names.filter((n) => !s[n]);
+  for (const [i, n] of missing.entries()) {
+    const opts = { executionProviders: [gpu ? 'webgpu' : 'wasm'] };
+    if (gpu && ON_GPU[n]) opts.preferredOutputLocation = ON_GPU[n];
+    s[n] = await ort.InferenceSession.create(engine.base + `models/edgetam/${n}.onnx`, opts);
+    if (progress) progress((i + 1) / missing.length);
   }
-  ort.env.wasm.numThreads = 1;
-  const names = ['encoder', 'decoder_point', 'decoder_init', 'decoder_track', 'memory_encoder', 'memory_attention'];
-  const s = {};
-  for (const [i, n] of names.entries()) {
-    s[n] = await ort.InferenceSession.create(base + `models/edgetam/${n}.onnx`, { executionProviders: [gpu ? 'webgpu' : 'wasm'] });
-    if (progress) progress((i + 1) / names.length);
-  }
-  const c = await (await fetch(base + 'models/edgetam/constants.json')).json();
-  engine = { ort, s, gpu, tpos: c.maskmem_tpos_enc.map((r) => Float32Array.from(r)) };
   return engine;
+}
+
+/** Libère des modèles dont on n'a plus besoin pour l'instant (ils seront rechargés à la demande). */
+export async function unload(names) {
+  for (const n of names) if (engine && engine.s[n]) { await engine.s[n].release(); delete engine.s[n]; }
 }
 
 const work = document.createElement('canvas');
@@ -50,12 +61,14 @@ export function release(...outs) {
   for (const o of outs) if (o) for (const t of Object.values(o)) if (t && typeof t.dispose === 'function') t.dispose();
 }
 
+const input = new Float32Array(3 * SIDE * SIDE);   // un seul tampon d'entrée, réutilisé (12 Mo)
+
 /** Fait passer une image (vidéo, photo) dans l'encodeur. L'image est étirée en 1024 × 1024, comme à l'entraînement. */
 export async function encode(src) {
   const { ort, s } = engine;
   wctx.drawImage(src, 0, 0, SIDE, SIDE);
   const px = wctx.getImageData(0, 0, SIDE, SIDE).data;
-  const n = SIDE * SIDE, x = new Float32Array(3 * n);
+  const n = SIDE * SIDE, x = input;
   for (let i = 0; i < n; i++) {
     x[i] = (px[i * 4] / 255 - MEAN[0]) / STD[0];
     x[n + i] = (px[i * 4 + 1] / 255 - MEAN[1]) / STD[1];
@@ -73,10 +86,12 @@ const concat = (list, size) => {
 /** Une personne suivie, image après image, dans un seul sens. `from` : un toucher [x, y] ou un rectangle [x0, y0, x1, y1],
  *  entre 0 et 1. */
 export class Track {
-  // `pick` : quelle découpe garder sur l'image de départ, parmi celles d'options() (0 = la plus grande)
-  constructor(from, pick = 0) {
+  // `pick` : quelle découpe garder sur l'image de départ, parmi celles d'options() (0 = la plus grande) ;
+  // `chosen` : cette découpe déjà calculée (par l'aperçu), réutilisée telle quelle sur l'image de départ.
+  constructor(from, pick = 0, chosen = null) {
     this.tap = from.length === 2;
     this.pick = pick;
+    this.chosen = chosen;
     this.points = Float32Array.from(from, (v) => v * SIDE);
     this.cond = null;      // image de départ : { mem, pos, ptr }
     this.past = new Map(); // images suivantes, par numéro : { mem, ptr }
@@ -113,9 +128,12 @@ export class Track {
     const T = (data, dims, type = 'float32') => new ort.Tensor(type, data, dims);
     let out;
     if (!this.cond) {
-      const opts = await this.options(enc);
-      if (!opts.length) return new Uint8Array(LOW * LOW);
-      const o = opts[Math.min(this.pick, opts.length - 1)];
+      let o = this.chosen;
+      if (!o) {
+        const opts = await this.options(enc);
+        if (!opts.length) { release(enc); return new Uint8Array(LOW * LOW); }
+        o = opts[Math.min(this.pick, opts.length - 1)];
+      }
       out = { mask: T(o.mask, [1, 1, LOW, LOW]), ptr: { data: o.ptr } };
     } else {
       // l'image courante « regarde » la mémoire : départ d'abord, puis les images précédentes, la plus ancienne d'abord

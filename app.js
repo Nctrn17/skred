@@ -1038,11 +1038,13 @@ async function previewPerson(from) {
   setPersonButton();
   try {
     hint.textContent = 'Chargement du modèle…';
+    crumb({ at: Date.now(), etape: 'chargement (aperçu)', taille: `${S.W}x${S.H}` });
     PERSON = PERSON || await import('./person.js');
-    await PERSON.loadEngine(new URL('.', location.href).href, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; });
+    await PERSON.loadEngine(new URL('.', location.href).href, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; },
+      ['encoder', from.length === 2 ? 'decoder_point' : 'decoder_init']);
     hint.textContent = 'Recherche de la zone…';
     const t = isPhoto() ? 0 : personIndex(S.t) / PERSON_FPS;
-    const img = isPhoto() ? S.img : (await personImages([t]).next()).value;
+    const img = isPhoto() ? S.img : await frame1024(t);
     crumb({ at: Date.now(), etape: 'aperçu', taille: `${S.W}x${S.H}` });
     const enc = await PERSON.encode(img);
     const opts = await new PERSON.Track(from).options(enc);
@@ -1061,7 +1063,7 @@ async function previewPerson(from) {
   if (S.personPreview && !isPhoto()) await goTo(S.personPreview.t); else renderReview();
 }
 
-$('pTrack').onclick = () => { const pv = S.personPreview; if (!pv) return; S.personPreview = null; maskPerson(pv.from, pv.pick); };
+$('pTrack').onclick = () => { const pv = S.personPreview; if (!pv) return; S.personPreview = null; maskPerson(pv.from, pv.pick, pv.opts[pv.pick]); };
 $('pOther').onclick = () => { const pv = S.personPreview; if (!pv) return; pv.pick = (pv.pick + 1) % pv.opts.length; setPersonButton(); renderReview(); };
 $('pCancel').onclick = () => { S.personPreview = null; setPersonButton(); renderReview(); };
 
@@ -1094,6 +1096,7 @@ async function* personImages(times) {
   };
   if (S.fast && MB && S.file) {
     const input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
+    try {
     const sink = new MB.VideoSampleSink(await input.getPrimaryVideoTrack());
     const forward = times.every((t, i) => i === 0 || t >= times[i - 1]);
     const size = forward ? times.length : 6;
@@ -1116,6 +1119,7 @@ async function* personImages(times) {
       }
       for (const t of chunk) yield got.get(t);
     }
+    } finally { if (typeof input.dispose === 'function') input.dispose(); }   // le décodeur ne reste pas ouvert
     return;
   }
   for (const t of times) {
@@ -1124,6 +1128,15 @@ async function* personImages(times) {
     c.getContext('2d').drawImage(video, 0, 0, 1024, 1024);
     yield c;
   }
+}
+
+// Une seule image en 1024 × 1024 (aperçu), lue par le même décodeur que l'image affichée à l'arrêt.
+async function frame1024(t) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 1024;
+  await stillFor(t);
+  c.getContext('2d').drawImage(still.t === t && still.canvas ? still.canvas : video, 0, 0, 1024, 1024);
+  return c;
 }
 
 // Journal du suivi en cours, gardé sur le téléphone : si Safari ferme l'onglet en plein suivi, on le dit au retour.
@@ -1148,7 +1161,8 @@ $('personBtn').onclick = () => {
 };
 
 // Suit la personne encadrée sur l'image affichée, vers la fin puis vers le début de la vidéo, et garde sa silhouette.
-async function maskPerson(box, pick = 0) {
+// `chosen` : la découpe validée dans l'aperçu, reprise telle quelle sur l'image de départ (pas recalculée).
+async function maskPerson(box, pick = 0, chosen = null) {
   const job = S.personJob = { cancelled: false };
   const person = { id: S.nextId++, sils: new Map(), removed: false };
   const hint = $('hint'), t0 = S.t;
@@ -1158,10 +1172,14 @@ async function maskPerson(box, pick = 0) {
     hint.textContent = 'Chargement du modèle…';
     PERSON = PERSON || await import('./person.js');
     const base = new URL('.', location.href).href;
-    const engine = await PERSON.loadEngine(base, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; });
+    crumb({ at: Date.now(), etape: 'chargement (suivi)', taille: `${S.W}x${S.H}` });
+    // pendant le suivi, seuls les modèles du suivi restent chargés (ceux du toucher et du cadre reviendront au prochain aperçu)
+    if (chosen) await PERSON.unload(['decoder_point', 'decoder_init']);
+    const engine = await PERSON.loadEngine(base, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; },
+      chosen ? ['encoder', 'decoder_track', 'memory_encoder', 'memory_attention'] : undefined);
     S.persons.push(person);
     if (isPhoto()) {
-      const bits = await new PERSON.Track(box, pick).step(await PERSON.encode(S.img));
+      const bits = await new PERSON.Track(box, pick, chosen).step(await PERSON.encode(S.img));
       person.sils.set(0, PERSON.silhouette(bits));
     } else {
       const k0 = personIndex(t0), last = Math.floor((S.duration - 0.001) * PERSON_FPS);
@@ -1169,11 +1187,11 @@ async function maskPerson(box, pick = 0) {
       let done = 0;
       // vers la fin, puis vers le début : chaque sens repart du toucher (ou du rectangle) sur l'image affichée
       for (const [from, to, dir] of [[k0, last, 1], [k0, 0, -1]]) {
-        const track = new PERSON.Track(box, pick);
+        const track = new PERSON.Track(box, pick, chosen);
         const ks = [];
         for (let k = from; dir > 0 ? k <= to : k >= to; k += dir) ks.push(k);
         const images = personImages(ks.map((k) => k / PERSON_FPS));
-        for (const k of ks) {
+        try { for (const k of ks) {
           const { value: img } = await images.next();
           if (job.cancelled) break;
           if (!img) continue;
@@ -1184,7 +1202,7 @@ async function maskPerson(box, pick = 0) {
           hint.textContent = `Suivi de la personne : ${Math.round(done / total * 100)} %`
             + (done > 5 ? ` · encore ${left > 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'}` : '')
             + (engine.gpu ? '' : ' (sans carte graphique : plus lent)');
-        }
+        } } finally { await images.return(); }   // referme le décodeur, même en cas d'arrêt ou d'erreur
       }
     }
     if (job.cancelled) S.persons = S.persons.filter((p) => p !== person);
