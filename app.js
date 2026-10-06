@@ -21,6 +21,8 @@ const SMALL_SCORE = 0.2;
 // (0,7 au moins) est masqué même s'il a été raté sur l'image entière. Réglages mesurés sur 9 226 photos où chaque
 // visage a été repéré à la main (WIDER FACE et, de nuit, DARK FACE) : voir test/eval-faces.py.
 const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.85, LOW_SCORE = 0.7;
+// Score minimal d'un cadre retrouvé sur l'image réduite (seconde passe) pour être retenu.
+const JUDGE = { confirm: MIN_SCORE };
 const RULE = { min: MIN_SCORE, small: SMALL_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
 // La passe sur l'image réduite double presque le temps d'analyse. Pour rattraper les gros plans ratés, elle n'est faite
 // qu'une image sur 3 : un masque déborde déjà de 4 images avant et après chaque visage, il reste donc posé sans trou.
@@ -35,6 +37,10 @@ const TRACK = {
   gap: 20,          // un visage perdu moins de 20 images reste masqué pendant le trou
   match: 1.6,       // distance maximale entre deux images, en largeurs de visage
   lowMatch: 0.6,    // même chose pour une détection très incertaine
+  // Taille maximale d'une détection incertaine qui prolonge un masque, en fois la dernière taille sûre. Mesuré sur
+  // 36 vidéos réelles (test/eval-reel.mjs) : surface masquée sans visage 20 % -> 16 % ; les 2 visages de plus laissés
+  // visibles sur 1 012 n'étaient couverts que par hasard, par un pavé posé à côté.
+  lowGrow: 1.5,
   minReach: 0.02,   // distance minimale tolérée (part du petit côté de l'image), pour les très petits visages
 };
 const DET_SIDE_DEEP = 1920;   // taille de l'image analysée (plus grand côté)
@@ -42,7 +48,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-06.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-06.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -104,7 +110,7 @@ function iou(a, b) {
 function judge(boxes) {
   const full = boxes.filter((b) => !b.lo), low = boxes.filter((b) => b.lo);
   for (const d of full) {
-    d.sure = d.s >= needed(d) || (d.s >= MIN_SCORE && low.some((l) => iou(d, l) > 0.3));
+    d.sure = d.s >= needed(d) || (d.s >= JUDGE.confirm && low.some((l) => iou(d, l) > 0.3));
     d.weak = d.sure && d.s < MIN_SCORE;   // petit visage admis grâce au seuil plus bas : à confirmer (buildTracks)
   }
   const extra = low.filter((l) => l.s >= LOW_SCORE && l.w / Math.min(S.W, S.H) >= BIG_FROM && !full.some((d) => d.sure && iou(d, l) > 0.3));
@@ -460,6 +466,7 @@ async function scan() {
   S.seekFallbacks = 0;
   S.detectMs = 0;
   S.detectCount = 0;
+  S.found = [];
 
   // Les images sont distribuées aux fils d'exécution libres, au fur et à mesure.
   const free = [...S.runners], waiting = [];
@@ -491,6 +498,7 @@ async function scan() {
     const t0 = performance.now();
     const always = isPhoto() || sent++ % LOW_EVERY === 0;   // compté par image envoyée, pas par numéro d'image
     tasks.push(runner.detect(bitmap, side, always).then((found) => {
+      if (DEBUG) S.found.push({ found: found.map((b) => ({ ...b })), i, j });   // pour window.skred.rejudge
       const boxes = judge(found);
       for (const b of boxes) b.at = i;   // première image servie par cette analyse
       S.detectMs += performance.now() - t0;
@@ -645,6 +653,9 @@ function buildTracks(results) {
         const dist = Math.hypot(l.x + l.w / 2 - d.x - d.w / 2, l.y + l.h / 2 - d.y - d.h / 2) / reach;
         // Une détection très incertaine ne prolonge un masque que de près, et si le visage a été vu nettement il y a peu.
         const sure = isSure(d);
+        // Une détection incertaine ne prolonge un masque qu'à une taille proche de celle où le visage a été vu nettement :
+        // sinon, de proche en proche, un petit visage pouvait finir en pavé noir couvrant la moitié de l'image.
+        if (!sure && d.w > TRACK.lowGrow * t.sureW) continue;
         if (dist < (sure ? TRACK.match : TRACK.lowMatch) && (sure || i - t.sureIdx <= TRACK.gap)) pairs.push({ d, t, dist });
       }
     }
@@ -656,7 +667,7 @@ function buildTracks(results) {
       t.dets.set(i, d);
       t.last = d;
       t.lastIdx = i;
-      if (isSure(d)) t.sureIdx = i;
+      if (isSure(d)) { t.sureIdx = i; t.sureW = d.w; }
     };
     for (const p of pairs) if (!usedT.has(p.t) && !usedD.has(p.d)) assign(p.d, p.t);
     for (const d of dets) {
@@ -1430,7 +1441,24 @@ $('file').addEventListener('change', (e) => {
 }
 
 // Accès aux données pour les tests : en local, ou avec ?debug (version de test de l'app Android).
-if (DEBUG) window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
+if (DEBUG) window.skred = {
+  S, frameIndex,
+  retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); },
+  // Refait le tri des détections gardées de l'analyse (S.found) avec d'autres réglages, puis le suivi.
+  rejudge: (o, t = {}) => {
+    Object.assign(JUDGE, o);
+    Object.assign(TRACK, t);
+    const results = [];
+    for (const { found, i, j } of S.found) {
+      const boxes = judge(found.map((b) => ({ ...b })));
+      for (const b of boxes) b.at = i;
+      for (let k = i; k <= j; k++) if (!results[k]) results[k] = boxes;
+    }
+    for (let k = 0; k < results.length; k++) results[k] ||= [];
+    S.raw = results;
+    buildTracks(results);
+  },
+};
 
 $('version').textContent = 'version ' + VERSION;
 

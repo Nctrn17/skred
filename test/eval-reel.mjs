@@ -86,7 +86,7 @@ for (const clip of clips) {
   let line = clip.padEnd(45);
   for (const [name, params] of Object.entries(VARIANTS)) {
     // Chaque variante : { judge: {...}, track: {...} }, appliquée par-dessus les réglages d'origine du site.
-    if (params) await run(`window.skred.rejudge(${JSON.stringify({ confirm: 0.3, ...params.judge })}, ${JSON.stringify({ lowGrow: 1e9, ...params.track })});`);
+    if (params) await run(`window.skred.rejudge(${JSON.stringify({ confirm: 0.3, ...params.judge })}, ${JSON.stringify({ lowGrow: 1.5, ...params.track })});`);
     const got = await run(`const S = window.skred.S; const short = Math.min(S.W, S.H);
       const tracks = S.tracks.filter(t => !t.removed).map(t => { const d = [...t.dets.values()]; return { n: d.length, w: Math.max(...d.map(x => x.w)) / short, s: Math.max(...d.map(x => x.s)), lo: d.filter(x => x.lo).length, sure: d.filter(x => x.sure).length, weak: d.filter(x => x.weak).length }; });
       return { tracks, W: S.W, H: S.H, masks: ${JSON.stringify(frames)}.map(i => (S.frames[i] || []).filter(m => !m.track.removed).map(({ x, y, w, h }) => ({ x, y, w, h }))) };`);
