@@ -14,6 +14,12 @@ test/*
 !test/prepare-darkface.py
 !test/darkface-split.json
 !test/entrainer-nuit.sh
+!test/entrainer-v2.sh
+!test/init-weights.patch
+!test/distiller-wider.py
+!test/prepare-reel.py
+!test/annoter-reel.py
+!test/eval-reel.mjs
 
 .vercel
 .env*

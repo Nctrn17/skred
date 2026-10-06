@@ -25,7 +25,13 @@ GROW = 1.3
 SMALL_SCORE = 0.2   # petits visages (moins de 12 % du petit côté) : seuil plus bas, comme app.js
 LOW_FACTOR = 3   # seconde passe : l'image analysée, réduite 3 fois
 
-session = ort.InferenceSession(os.path.join(ROOT, 'models', 'yunet.onnx'), providers=['CPUExecutionProvider'])
+# MODELE=<chemin .onnx> NOM=<suffixe> : mesure un autre modèle, avec ses propres détections en cache (detections-<banque><NOM>.json).
+MODEL = os.environ.get('MODELE', os.path.join(ROOT, 'models', 'yunet.onnx'))
+SUFFIX = os.environ.get('NOM', '')
+session = ort.InferenceSession(MODEL, providers=['CPUExecutionProvider'])
+# Nuit, comme detector.js : image très sombre (moyenne sous DARK) analysée aussi éclaircie, visages réunis.
+DARK = 40
+NIGHT_LUT = np.floor(np.sqrt(np.arange(256) / 255) * 255).astype(np.uint8)
 
 
 def low(img):
@@ -33,6 +39,21 @@ def low(img):
 
 
 def detect(img, max_side=MAX_SIDE):
+    h, w = img.shape[:2]
+    scale = min(1.0, max_side / max(w, h))
+    small = cv2.resize(img, (max(1, round(w * scale)), max(1, round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1 else img
+    if small.mean() >= DARK:
+        return detect_once(img, max_side)
+    found = detect_once(img, max_side) + detect_once(cv2.LUT(img, NIGHT_LUT), max_side)
+    found.sort(key=lambda d: -d[4])
+    kept = []
+    for b in found:
+        if all(iou(k, b) <= NMS_IOU for k in kept):
+            kept.append(b)
+    return kept
+
+
+def detect_once(img, max_side=MAX_SIDE):
     h, w = img.shape[:2]
     scale = min(1.0, max_side / max(w, h))
     dw, dh = max(1, round(w * scale)), max(1, round(h * scale))
@@ -109,7 +130,7 @@ def darkface():
 # ---------- Détection (gardée en cache) ----------
 
 def collect(name, items):
-    cache = os.path.join(DATA, f'detections-{name}.json')
+    cache = os.path.join(DATA, f'detections-{name}{SUFFIX}.json')
     if os.path.exists(cache):
         rows = json.load(open(cache))
         if rows and 'lo' not in rows[0]:

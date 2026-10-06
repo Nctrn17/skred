@@ -1,0 +1,22 @@
+diff --git a/yunet_train/cli/train.py b/yunet_train/cli/train.py
+index e1b570b..33224a0 100644
+--- a/yunet_train/cli/train.py
++++ b/yunet_train/cli/train.py
+@@ -58,6 +58,7 @@ def parse_args() -> argparse.Namespace:
+     parser.add_argument("--checkpoint-interval", type=int, default=1)
+     parser.add_argument("--eval-interval", type=int, default=100)
+     parser.add_argument("--resume", type=Path, default=None)
++    parser.add_argument("--init-weights", type=Path, default=None)
+     parser.add_argument("--limit-samples", type=int, default=None)
+     parser.add_argument("--eval-limit-samples", type=int, default=None)
+     parser.add_argument("--no-tensorboard", action="store_true")
+@@ -93,6 +94,9 @@ def run_training(args: argparse.Namespace) -> None:
+         warmup_iters=args.warmup_iters,
+         warmup_ratio=args.warmup_ratio,
+     )
++    if args.init_weights is not None:
++        load_checkpoint(args.init_weights, model=model, map_location="cpu")
++        logger(f"init_weights path={args.init_weights}")
+     start_epoch = 1
+     best_loss = _read_best_loss(args.work_dir)
+     if args.resume is not None:
