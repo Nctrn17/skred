@@ -1,144 +1,166 @@
 <!doctype html>
 <html lang="fr">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
-<meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#efede6">
-<meta name="description" content="Masque les visages d'une vidéo ou d'une photo avec un carré plein, directement sur ton téléphone. Rien n'est envoyé sur internet.">
-<title>skred · masque les visages avant de poster</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20fill=%22%23efede6%22/%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2220%22%20height=%2220%22%20fill=%22%230b0b0a%22/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="skred">
-<link rel="stylesheet" href="vendor/fonts/fonts.css">
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#efede6">
+  <meta name="description"
+    content="Masque les visages d'une vidéo ou d'une photo avec un carré plein, directement sur ton téléphone. Rien n'est envoyé sur internet.">
+  <title>skred · masque les visages avant de poster</title>
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20fill=%22%23efede6%22/%3E%3Crect%20x=%226%22%20y=%226%22%20width=%2220%22%20height=%2220%22%20fill=%22%230b0b0a%22/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="skred">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<!-- Accueil -->
-<section id="s-home" class="screen paper">
-  <header class="top"><span class="brand">skred</span><button class="install" id="install" type="button" hidden>Installer l'app</button></header>
-  <div class="middle">
-    <h1 class="title">Masque<br>les visages.</h1>
-    <label class="square pick" id="pickLabel" aria-disabled="true">
-      <input type="file" id="file" accept="video/*,image/*" disabled>
-      <span class="plus" aria-hidden="true">+</span>
-      <span class="pickText" id="pickText">Chargement…</span>
-    </label>
-  </div>
-  <p id="homeError" class="error" hidden></p>
-  <footer class="foot">
-    <span id="footNote">Rien ne quitte ton téléphone.</span>
-    <label class="fast"><input type="checkbox" id="fast"> Mode rapide (peut rater les très petits visages)</label>
-    <a href="verifier.html">Vérifier skred</a>
-    <a href="mentions.html">Mentions légales</a>
-    <span id="version"></span>
-  </footer>
-</section>
+  <!-- Accueil -->
+  <section id="s-home" class="screen paper">
+    <header class="top"><span class="brand">skred</span><button class="install" id="install" type="button"
+        hidden>Installer l'app</button></header>
+    <div class="middle">
+      <h1 class="title">Masque<br>les visages.</h1>
+      <label class="square pick" id="pickLabel" aria-disabled="true">
+        <input type="file" id="file" accept="video/*,image/*" disabled>
+        <span class="plus" aria-hidden="true">+</span>
+        <span class="pickText" id="pickText">Chargement…</span>
+      </label>
+    </div>
+    <p id="homeError" class="error" hidden></p>
+    <footer class="foot">
+      <span id="footNote">Rien ne quitte ton téléphone.</span>
+      <label class="fast"><input type="checkbox" id="fast"> Mode rapide (peut rater les très petits visages)</label>
+      <a href="verifier.html">Vérifier skred</a>
+      <a href="mentions.html">Mentions légales</a>
+      <span id="version"></span>
+    </footer>
+  </section>
 
-<!-- Guide d'installation sur iPhone (Apple ne permet pas d'installer depuis un bouton) -->
-<div class="sheetBack" id="iosSheet" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="iosTitle">
-    <h2 id="iosTitle">Installer<br>sur iPhone</h2>
-    <p class="note">Gratuit, sans App Store. skred s'ouvrira comme une app, même sans réseau.</p>
-    <ol class="steps">
-      <li id="iosInApp" hidden><span class="n">0</span><span class="t">Ouvre cette page dans Safari : menu ⋯ puis « Ouvrir dans Safari » ou « dans le navigateur »</span><span></span></li>
-      <li><span class="n">1</span><span class="t" id="iosShare">Touche le bouton Partager, en bas de Safari. Sur iOS 26, il est dans le menu ⋯ en bas à droite</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg></li>
-      <li><span class="n">2</span><span class="t">Choisis « Sur l'écran d'accueil »</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></li>
-      <li><span class="n">3</span><span class="t">Touche « Ajouter », en haut à droite</span><span></span></li>
-    </ol>
-    <button class="close" id="iosClose" type="button">J'ai compris</button>
-  </div>
-</div>
-
-<!-- Analyse -->
-<section id="s-scan" class="screen paper" hidden>
-  <header class="top"><span class="brand">skred</span></header>
-  <div class="middle">
-    <span class="big" id="scanText">0%</span>
-    <div class="square frame" id="scanFrame">
-      <span class="tag">Image en cours</span>
-      <span class="fill up" id="scanBar"></span>
+  <!-- Guide d'installation sur iPhone (Apple ne permet pas d'installer depuis un bouton) -->
+  <div class="sheetBack" id="iosSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="iosTitle">
+      <h2 id="iosTitle">Installer<br>sur iPhone</h2>
+      <p class="note">Gratuit, sans App Store. skred s'ouvrira comme une app, même sans réseau.</p>
+      <ol class="steps">
+        <li id="iosInApp" hidden><span class="n">0</span><span class="t">Ouvre cette page dans Safari : menu ⋯ puis
+            « Ouvrir dans Safari » ou « dans le navigateur »</span><span></span></li>
+        <li><span class="n">1</span><span class="t" id="iosShare">Touche le bouton Partager, en bas de Safari. Sur iOS
+            26, il est dans le menu ⋯ en bas à droite</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12M8 7l4-4 4 4" />
+            <path d="M6 11H5v10h14V11h-1" />
+          </svg>
+        </li>
+        <li><span class="n">2</span><span class="t">Choisis « Sur l'écran d'accueil »</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx="3" />
+            <path d="M12 8v8M8 12h8" />
+          </svg>
+        </li>
+        <li><span class="n">3</span><span class="t">Touche « Ajouter », en haut à droite</span><span></span></li>
+      </ol>
+      <button class="close" id="iosClose" type="button">J'ai compris</button>
     </div>
   </div>
-  <button class="link" id="scanCancel" type="button">Annuler</button>
-</section>
 
-<!-- Vérification -->
-<section id="s-review" class="screen ink" hidden>
-  <div class="stage" id="stage">
-    <canvas id="view"></canvas>
-    <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
-    <button class="link small" id="restoreAll" type="button" hidden></button>
-    <div class="maskBar" id="maskBar" hidden>
-      <button type="button" id="mMinus" title="Plus petit">−</button>
-      <button type="button" id="mPlus" title="Plus grand">+</button>
-      <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
-      <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
+  <!-- Analyse -->
+  <section id="s-scan" class="screen paper" hidden>
+    <header class="top"><span class="brand">skred</span></header>
+    <div class="middle">
+      <span class="big" id="scanText">0%</span>
+      <div class="square frame" id="scanFrame">
+        <span class="tag">Image en cours</span>
+        <span class="fill up" id="scanBar"></span>
+      </div>
     </div>
-  </div>
-  <div class="deck">
-    <div class="timeline videoOnly" id="timeline">
-      <button type="button" id="prev" class="step" title="Image précédente">‹</button>
-      <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo"></div>
-      <button type="button" id="next" class="step" title="Image suivante">›</button>
-    </div>
-    <div class="row">
-      <button type="button" id="play" class="ctl videoOnly" title="Lecture">▶</button>
-      <button type="button" id="styleBtn" class="ctl" title="Style du masque"><span class="sq"></span></button>
-      <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Garder le son">SON</button>
-      <button type="button" id="export" class="go">Exporter</button>
-    </div>
-    <p class="note videoOnly" id="audioNote">Son gardé. La voix aussi permet de reconnaître quelqu'un.</p>
-  </div>
-</section>
+    <button class="link" id="scanCancel" type="button">Annuler</button>
+  </section>
 
-<!-- Création -->
-<section id="s-export" class="screen paper" hidden>
-  <header class="top"><span class="brand">skred</span></header>
-  <div class="middle">
-    <span class="big" id="exportPct">0%</span>
-    <div class="square frame" id="exportFrame">
-      <span class="fill side" id="exportBar"></span>
+  <!-- Vérification -->
+  <section id="s-review" class="screen ink" hidden>
+    <div class="stage" id="stage">
+      <canvas id="view"></canvas>
+      <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
+      <button class="link small" id="restoreAll" type="button" hidden></button>
+      <div class="maskBar" id="maskBar" hidden>
+        <button type="button" id="mMinus" title="Plus petit">−</button>
+        <button type="button" id="mPlus" title="Plus grand">+</button>
+        <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
+        <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
+      </div>
     </div>
-    <span class="strong">Garde l'écran allumé.</span>
-    <span class="note" id="exportText"></span>
-  </div>
-  <button class="link" id="exportCancel" type="button">Annuler</button>
-</section>
-
-<!-- Résultat -->
-<section id="s-done" class="screen paper" hidden>
-  <header class="top"><span class="brand">skred</span></header>
-  <div class="middle">
-    <span class="big" id="doneTitle">Prête.</span>
-    <div class="square frame dark">
-      <video id="result" controls playsinline></video>
-      <img id="resultImg" alt="Photo masquée" hidden>
+    <div class="deck">
+      <div class="timeline videoOnly" id="timeline">
+        <button type="button" id="prev" class="step" title="Image précédente">‹</button>
+        <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01"
+            value="0" aria-label="Position dans la vidéo"></div>
+        <button type="button" id="next" class="step" title="Image suivante">›</button>
+      </div>
+      <div class="row">
+        <button type="button" id="play" class="ctl videoOnly" title="Lecture">▶</button>
+        <button type="button" id="styleBtn" class="ctl" title="Style du masque"><span class="sq"></span></button>
+        <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Son d'origine. Touchez pour le brouiller (voix et ambiance)."
+          aria-label="Son d'origine. Touchez pour le brouiller (voix et ambiance).">SON</button>
+        <button type="button" id="export" class="go">Exporter</button>
+      </div>
+      <p class="note videoOnly" id="audioNote">Son d'origine. Touchez pour le brouiller (voix et ambiance).</p>
     </div>
-    <span class="strong" id="doneCheck">Regarde-la en entier avant de poster.</span>
-    <span class="note">Le masque cache les visages, pas les vêtements, les tatouages, la voix ni le lieu. Aucun outil ne protège à 100 %.</span>
-  </div>
-  <div class="bottom">
-    <a class="cta" id="download">Télécharger<span>↓</span></a>
-    <div class="links">
-      <button class="link" id="back" type="button">Corriger</button>
-      <button class="link" id="share" type="button" hidden>Enregistrer ou partager</button>
-      <button class="link" id="restart2" type="button">Autre fichier</button>
+  </section>
+
+  <!-- Création -->
+  <section id="s-export" class="screen paper" hidden>
+    <header class="top"><span class="brand">skred</span></header>
+    <div class="middle">
+      <span class="big" id="exportPct">0%</span>
+      <div class="square frame" id="exportFrame">
+        <span class="fill side" id="exportBar"></span>
+      </div>
+      <span class="strong">Garde l'écran allumé.</span>
+      <span class="note" id="exportText"></span>
     </div>
-    <span class="note" id="doneInfo"></span>
-  </div>
-</section>
+    <button class="link" id="exportCancel" type="button">Annuler</button>
+  </section>
 
-<p id="fatal" class="error" hidden></p>
-<p id="stats" class="note" hidden></p>
+  <!-- Résultat -->
+  <section id="s-done" class="screen paper" hidden>
+    <header class="top"><span class="brand">skred</span></header>
+    <div class="middle">
+      <span class="big" id="doneTitle">Prête.</span>
+      <div class="square frame dark">
+        <video id="result" controls playsinline></video>
+        <img id="resultImg" alt="Photo masquée" hidden>
+      </div>
+      <span class="strong" id="doneCheck">Regarde-la en entier avant de poster.</span>
+      <span class="note" id="doneNote">Le masque cache les visages, pas les vêtements, les tatouages, la voix ni le lieu. Aucun outil
+        ne protège à 100 %.</span>
+    </div>
+    <div class="bottom">
+      <a class="cta" id="download">Télécharger<span>↓</span></a>
+      <div class="links">
+        <button class="link" id="back" type="button">Corriger</button>
+        <button class="link" id="share" type="button" hidden>Enregistrer ou partager</button>
+        <button class="link" id="restart2" type="button">Autre fichier</button>
+      </div>
+      <span class="note" id="doneInfo"></span>
+    </div>
+  </section>
 
-<video id="src" class="src" playsinline muted preload="auto"></video>
-<script type="module" src="app.js"></script>
+  <p id="fatal" class="error" hidden></p>
+  <p id="stats" class="note" hidden></p>
+
+  <video id="src" class="src" playsinline preload="auto"></video>
+  <script type="module" src="app.js"></script>
 </body>
+
 </html>

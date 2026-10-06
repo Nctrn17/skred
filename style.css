@@ -247,6 +247,7 @@ button { font: inherit; color: inherit; }
   text-align: center;
 }
 .ctl.mono { font: 700 11px/1 var(--mono); }
+#audioBtn.ctl { width: 72px; font-size: 9px; }
 .ctl.on { background: var(--paper); color: var(--ink); border-color: var(--paper); }
 .ctl .sq { width: 18px; height: 18px; background: var(--paper); }
 .ctl.on .sq { background: var(--ink); }
