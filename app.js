@@ -67,7 +67,12 @@ const S = {
   tracks: [],       // un suivi par visage : { id, dets: Map(image -> cadre), removed }
   frames: [],       // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
   manual: [],       // masques ajoutés à la main : [{ id, cx, cy, size, t0, t1 }]
-  sel: null,        // masque sélectionné : { manual } ou { track }
+  persons: [],      // personnes masquées en entier : [{ id, sils: Map(image à 10 i/s -> silhouette), removed }]
+  personMode: false, // le prochain glissé sur l'image encadre une personne
+  drawBox: null,    // rectangle en cours de tracé (entre 0 et 1)
+  personJob: null,  // suivi en cours : { cancelled }
+  personPreview: null, // zone proposée avant le suivi : { from, t, opts, pick, canvases }
+  sel: null,        // masque sélectionné : { manual }, { track } ou { person }
   nextId: 1,
   t: 0,
   style: 'noir',
@@ -367,9 +372,31 @@ async function measureFps() {
   return Number.isFinite(fps) ? fps : 30;
 }
 
-const drawSource = (ctx) => ctx.drawImage(isPhoto() ? S.img : video, 0, 0, S.W, S.H);
+// Image affichée pendant la vérification : à l'arrêt, celle lue dans le fichier pour cet instant quand on l'a (stillFor) ;
+// Safari sur iPhone garde parfois l'image d'avant un saut dans la vidéo, et seuls les masques bougeaient.
+const drawSource = (ctx) => ctx.drawImage(isPhoto() ? S.img : (!S.playing && still.t === S.t && still.canvas) || video, 0, 0, S.W, S.H);
+const still = { t: -1, canvas: null, sink: null };
+async function stillFor(t) {
+  if (!S.fast || !MB || !S.file) return;
+  try {
+    if (!still.sink) {
+      const input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
+      still.sink = new MB.VideoSampleSink(await input.getPrimaryVideoTrack());
+    }
+    const sample = await still.sink.getSample(t + S.start);
+    if (!sample) return;
+    if (!still.canvas) still.canvas = document.createElement('canvas');
+    if (still.canvas.width !== S.W || still.canvas.height !== S.H) { still.canvas.width = S.W; still.canvas.height = S.H; }
+    sample.draw(still.canvas.getContext('2d'), 0, 0, S.W, S.H);
+    sample.close();
+    still.t = t;
+  } catch { /* on garde l'image du lecteur */ }
+}
 const frameTime = (i) => Math.min((i + 0.5) / S.fps, Math.max(0, S.duration - 0.001));
 const frameIndex = (t) => clamp(Math.floor(t * S.fps), 0, Math.max(0, S.frames.length - 1));
+const PERSON_FPS = 10;      // une personne est suivie sur 10 images par seconde : chaque silhouette couvre 0,1 s
+const personIndex = (t) => (isPhoto() ? 0 : Math.round(t * PERSON_FPS));
+const personAt = (p, t) => p.sils.get(personIndex(t)) || p.sils.get(personIndex(t) - 1) || p.sils.get(personIndex(t) + 1);
 
 async function loadFile(file) {
   if (window.diag) window.diag('loadFile ' + file.type + ' ' + file.size);
@@ -717,6 +744,8 @@ function manualRect(m) {
 const manualAt = (t) => S.manual.filter((m) => t >= m.t0 - 1e-3 && t <= m.t1 + 1e-3);
 const inside = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
+const scaleBox = (b) => ({ x: b.x * S.W, y: b.y * S.H, w: b.w * S.W, h: b.h * S.H });
+
 function paint(ctx, t, edit) {
   const auto = S.frames[frameIndex(t)] || [];
   const rects = [...auto.filter((b) => !b.track.removed), ...manualAt(t).map(manualRect)];
@@ -724,6 +753,11 @@ function paint(ctx, t, edit) {
   // D'abord les cases pleines : c'est elles qui protègent.
   ctx.fillStyle = '#000';
   for (const r of rects) ctx.fillRect(Math.floor(r.x), Math.floor(r.y), Math.ceil(r.w) + 1, Math.ceil(r.h) + 1);
+  // Personnes masquées en entier : leur silhouette, en noir, toujours (même avec le style émoji).
+  for (const p of S.persons) {
+    const sil = !p.removed && personAt(p, t);
+    if (sil) { ctx.imageSmoothingEnabled = true; ctx.drawImage(sil.canvas, 0, 0, S.W, S.H); }
+  }
 
   // L'émoji est seulement posé par-dessus la case, il ne la remplace jamais.
   if (S.style === 'emoji') {
@@ -751,6 +785,13 @@ function paint(ctx, t, edit) {
     else if (selected) frame(b, '#e9ff45', true);
   }
   for (const m of manualAt(t)) frame(manualRect(m), '#e9ff45', S.sel && S.sel.manual === m);
+  for (const p of S.persons) {
+    const sil = personAt(p, t), sel = S.sel && S.sel.person === p;
+    if (sil && sil.box && (sel || p.removed)) frame(scaleBox(sil.box), p.removed ? '#ff6b5e' : '#e9ff45', sel);
+  }
+  if (S.drawBox) frame(scaleBox(S.drawBox), '#e9ff45', true);
+  const pv = S.personPreview;
+  if (pv && Math.abs(t - pv.t) < 0.06) { ctx.imageSmoothingEnabled = true; ctx.drawImage(pv.canvases[pv.pick], 0, 0, S.W, S.H); }
   ctx.setLineDash([]);
 }
 
@@ -766,7 +807,7 @@ async function goTo(t) {
   while (seekNext !== null) {
     const x = seekNext;
     seekNext = null;
-    await seekTo(x);
+    await Promise.all([seekTo(x), stillFor(x)]);
     S.t = x;
     renderReview();
   }
@@ -868,7 +909,7 @@ async function togglePlay() {
 // La barre jaune sous le masque sélectionné : taille et durée pour un masque ajouté, retrait pour un automatique.
 function refreshPanels() {
   const m = S.sel && S.sel.manual;
-  const tr = S.sel && S.sel.track;
+  const tr = S.sel && (S.sel.track || S.sel.person);
   $('maskBar').hidden = !m && !tr;
   $('mMinus').hidden = !m;
   $('mPlus').hidden = !m;
@@ -885,6 +926,7 @@ function refreshPanels() {
 function selectedRect() {
   if (S.sel && S.sel.manual) return manualAt(S.t).includes(S.sel.manual) ? manualRect(S.sel.manual) : null;
   if (S.sel && S.sel.track) return (S.frames[frameIndex(S.t)] || []).find((b) => b.track === S.sel.track) || null;
+  if (S.sel && S.sel.person) { const sil = personAt(S.sel.person, S.t); return sil && sil.box ? scaleBox(sil.box) : null; }
   return null;
 }
 
@@ -919,8 +961,21 @@ view.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   stopPlay();
   const p = canvasPoint(e);
+  if (S.personJob) return;
+  if (S.personMode || S.personPreview) {   // pendant l'aperçu, toucher ailleurs propose une autre zone
+    // encadrer une personne : on part de ce point, le rectangle suit le doigt
+    drag = { box: { x0: clamp(p.x, 0, 1), y0: clamp(p.y, 0, 1) } };
+    S.drawBox = { x: drag.box.x0, y: drag.box.y0, w: 0, h: 0 };
+    view.setPointerCapture(e.pointerId);
+    renderReview();
+    return;
+  }
   if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) { deselect(); return; }
   const px = p.x * S.W, py = p.y * S.H;
+
+  // 0. Une personne masquée en entier : on la sélectionne, pour pouvoir la retirer ou la remettre.
+  const person = PERSON && S.persons.slice().reverse().find((x) => { const sil = personAt(x, S.t); return sil && PERSON.covers(sil, p.x, p.y); });
+  if (person) { S.sel = { person }; refreshPanels(); renderReview(); return; }
 
   // 1. Un masque ajouté à la main : on le sélectionne et on peut le faire glisser.
   let m = manualAt(S.t).reverse().find((x) => inside(manualRect(x), px, py));
@@ -947,12 +1002,168 @@ view.addEventListener('pointerdown', (e) => {
 view.addEventListener('pointermove', (e) => {
   if (!drag) return;
   const p = canvasPoint(e);
+  if (drag.box) {
+    const x1 = clamp(p.x, 0, 1), y1 = clamp(p.y, 0, 1), b = drag.box;
+    S.drawBox = { x: Math.min(b.x0, x1), y: Math.min(b.y0, y1), w: Math.abs(x1 - b.x0), h: Math.abs(y1 - b.y0) };
+    // seulement l'image, une fois par rafraîchissement d'écran : redessiner tout l'écran à chaque mouvement saccadait
+    if (!drag.frame) drag.frame = requestAnimationFrame(() => { if (drag) drag.frame = 0; drawSource(vctx); paint(vctx, S.t, true); });
+    return;
+  }
   drag.m.cx = clamp(p.x + drag.dx, 0, 1);
   drag.m.cy = clamp(p.y + drag.dy, 0, 1);
   renderReview();
 });
 
-for (const ev of ['pointerup', 'pointercancel']) view.addEventListener(ev, () => { drag = null; });
+for (const ev of ['pointerup', 'pointercancel']) view.addEventListener(ev, () => {
+  const box = drag && drag.box && S.drawBox;
+  drag = null;
+  if (!box) return;
+  S.drawBox = null;
+  S.personMode = false;
+  // un simple toucher : la personne sous le doigt ; un vrai glissé : le rectangle tracé
+  previewPerson(box.w > 0.03 && box.h > 0.03 ? [box.x, box.y, box.x + box.w, box.y + box.h] : [box.x, box.y]);
+});
+
+/* ---------- Masquer une personne (EdgeTAM) ---------- */
+
+let PERSON = null;   // module person.js, chargé à la première utilisation
+
+// Calcule la zone sur l'image affichée seulement, et la montre en jaune : on vérifie avant de lancer le suivi.
+async function previewPerson(from) {
+  const job = S.personJob = { cancelled: false };
+  const hint = $('hint');
+  setPersonButton();
+  try {
+    hint.textContent = 'Chargement du modèle…';
+    PERSON = PERSON || await import('./person.js');
+    await PERSON.loadEngine(new URL('.', location.href).href, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; });
+    hint.textContent = 'Recherche de la zone…';
+    const t = isPhoto() ? 0 : personIndex(S.t) / PERSON_FPS;
+    const img = isPhoto() ? S.img : (await personImages([t]).next()).value;
+    const opts = await new PERSON.Track(from).options(await PERSON.encode(img));
+    if (job.cancelled) throw new Error('annulé');
+    if (!opts.length) { hint.textContent = 'Aucune personne trouvée à cet endroit. Réessaie en touchant le corps.'; S.personPreview = null; }
+    else S.personPreview = { from, t, opts, pick: 0, canvases: opts.map((o) => PERSON.preview(o.bits)) };
+  } catch (err) {
+    S.personPreview = null;
+    if (!job.cancelled) hint.textContent = "Impossible de masquer la personne sur ce navigateur.";
+    if (window.diag) window.diag('personne : ' + (err && err.message));
+  }
+  S.personJob = null;
+  setPersonButton();
+  if (S.personPreview && !isPhoto()) await goTo(S.personPreview.t); else renderReview();
+}
+
+$('pTrack').onclick = () => { const pv = S.personPreview; if (!pv) return; S.personPreview = null; maskPerson(pv.from, pv.pick); };
+$('pOther').onclick = () => { const pv = S.personPreview; if (!pv) return; pv.pick = (pv.pick + 1) % pv.opts.length; setPersonButton(); renderReview(); };
+$('pCancel').onclick = () => { S.personPreview = null; setPersonButton(); renderReview(); };
+
+function setPersonButton() {
+  const pv = S.personPreview;
+  $('personBar').hidden = !pv;
+  $('personBtn').hidden = !!pv;
+  if (pv) {
+    $('pOther').hidden = pv.opts.length < 2;
+    $('hint').textContent = (pv.opts.length > 1 ? `Zone ${pv.pick + 1} sur ${pv.opts.length} : « Autre » pour en voir une autre.` : 'Voici la zone qui sera masquée.')
+      + ' Touche ailleurs pour changer.';
+    return;
+  }
+  $('personBtn').textContent = S.personJob ? 'Arrêter le suivi' : S.personMode ? 'Annuler' : 'Masquer une personne en entier';
+  if (!S.personJob) $('hint').textContent = S.personMode ? 'Touche la personne à masquer (ou encadre-la).'
+    : (matchMedia('(pointer: fine)').matches ? 'Clique sur' : 'Touche') + ' un visage pour le masquer ou le démasquer.';
+}
+
+// Images de la vidéo aux instants demandés, dans cet ordre, en 1024 × 1024 (la taille vue par EdgeTAM).
+// Lues directement dans le fichier quand l'export rapide est possible : Safari sur iPhone redonne parfois l'image
+// précédente après un saut dans la lecture, et la silhouette restait alors figée. Par paquets de 20 images, lues dans
+// l'ordre du fichier puis rendues dans l'ordre demandé (le suivi vers le début de la vidéo les parcourt à l'envers).
+async function* personImages(times) {
+  const canvasFor = () => { const c = document.createElement('canvas'); c.width = c.height = 1024; return c; };
+  if (S.fast && MB && S.file) {
+    const input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
+    const sink = new MB.VideoSampleSink(await input.getPrimaryVideoTrack());
+    for (let i = 0; i < times.length; i += 20) {
+      const chunk = times.slice(i, i + 20), sorted = [...chunk].sort((a, b) => a - b), got = new Map();
+      let j = 0;
+      for await (const sample of sink.samplesAtTimestamps(sorted.map((t) => t + S.start))) {
+        const c = canvasFor();
+        if (sample) { sample.draw(c.getContext('2d'), 0, 0, 1024, 1024); sample.close(); }
+        got.set(sorted[j++], sample ? c : null);
+      }
+      for (const t of chunk) yield got.get(t);
+    }
+    return;
+  }
+  for (const t of times) {
+    await seekTo(t);
+    const c = canvasFor();
+    c.getContext('2d').drawImage(video, 0, 0, 1024, 1024);
+    yield c;
+  }
+}
+
+$('personBtn').onclick = () => {
+  if (S.personJob) { S.personJob.cancelled = true; return; }
+  stopPlay();
+  S.personMode = !S.personMode;
+  S.sel = null;
+  refreshPanels();
+  setPersonButton();
+  renderReview();
+};
+
+// Suit la personne encadrée sur l'image affichée, vers la fin puis vers le début de la vidéo, et garde sa silhouette.
+async function maskPerson(box, pick = 0) {
+  const job = S.personJob = { cancelled: false };
+  const person = { id: S.nextId++, sils: new Map(), removed: false };
+  const hint = $('hint'), t0 = S.t;
+  setPersonButton();
+  await keepAwake(true);
+  try {
+    hint.textContent = 'Chargement du modèle…';
+    PERSON = PERSON || await import('./person.js');
+    const base = new URL('.', location.href).href;
+    const engine = await PERSON.loadEngine(base, (p) => { hint.textContent = `Chargement du modèle : ${Math.round(p * 100)} %`; });
+    S.persons.push(person);
+    if (isPhoto()) {
+      const bits = await new PERSON.Track(box, pick).step(await PERSON.encode(S.img));
+      person.sils.set(0, PERSON.silhouette(bits));
+    } else {
+      const k0 = personIndex(t0), last = Math.floor((S.duration - 0.001) * PERSON_FPS);
+      const total = last + 1, started = performance.now();
+      let done = 0;
+      // vers la fin, puis vers le début : chaque sens repart du toucher (ou du rectangle) sur l'image affichée
+      for (const [from, to, dir] of [[k0, last, 1], [k0, 0, -1]]) {
+        const track = new PERSON.Track(box, pick);
+        const ks = [];
+        for (let k = from; dir > 0 ? k <= to : k >= to; k += dir) ks.push(k);
+        const images = personImages(ks.map((k) => k / PERSON_FPS));
+        for (const k of ks) {
+          const { value: img } = await images.next();
+          if (job.cancelled) break;
+          if (!img) continue;
+          const bits = await track.step(await PERSON.encode(img));
+          if (!person.sils.has(k)) { person.sils.set(k, PERSON.silhouette(bits)); done++; }
+          const left = (performance.now() - started) / done * (total - done) / 1000;
+          hint.textContent = `Suivi de la personne : ${Math.round(done / total * 100)} %`
+            + (done > 5 ? ` · encore ${left > 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'}` : '')
+            + (engine.gpu ? '' : ' (sans carte graphique : plus lent)');
+        }
+      }
+    }
+    if (job.cancelled) S.persons = S.persons.filter((p) => p !== person);
+    else S.sel = { person };
+  } catch (err) {
+    S.persons = S.persons.filter((p) => p !== person);
+    hint.textContent = "Impossible de masquer la personne sur ce navigateur.";
+    if (window.diag) window.diag('personne : ' + (err && err.message));
+  }
+  S.personJob = null;
+  await keepAwake(false);
+  setPersonButton();
+  refreshPanels();
+  await goTo(t0);
+}
 
 
 $('mMinus').onclick = () => { const m = selectedManual(); if (!m) return; m.size = clamp(m.size / 1.25, 0.04, 0.9); renderReview(); };
@@ -967,6 +1178,7 @@ $('mAll').onclick = () => {
 };
 $('mDelete').onclick = () => {
   if (S.sel && S.sel.track) { S.sel.track.removed = !S.sel.track.removed; refreshPanels(); renderReview(); return; }
+  if (S.sel && S.sel.person) { S.sel.person.removed = !S.sel.person.removed; refreshPanels(); renderReview(); return; }
   S.manual = S.manual.filter((x) => x !== selectedManual());
   deselect();
 };
@@ -1331,6 +1543,13 @@ function resetAll() {
   S.frames = [];
   S.raw = [];
   S.manual = [];
+  if (S.personJob) S.personJob.cancelled = true;
+  S.persons = [];
+  S.personMode = false;
+  S.personPreview = null;
+  still.t = -1;
+  still.sink = null;
+  S.drawBox = null;
   S.sel = null;
   S.t = 0;
   S.start = S.first = 0;
@@ -1430,7 +1649,7 @@ $('file').addEventListener('change', (e) => {
 }
 
 // Accès aux données pour les tests : en local, ou avec ?debug (version de test de l'app Android).
-if (DEBUG) window.skred = { S, frameIndex, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
+if (DEBUG) window.skred = { S, frameIndex, paint, retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); } };
 
 $('version').textContent = 'version ' + VERSION;
 

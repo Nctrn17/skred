@@ -12,6 +12,11 @@ const listed = [...sw.match(/const FILES = \[([\s\S]*?)\];/)[1].matchAll(/'([^']
 const files = [
   'index.html', 'mentions.html', 'verifier.html', '404.html', 'sw.js', '_headers', 'favicon.ico', 'icon.svg', ...listed,
   'models/LICENSE-yunet.txt', 'vendor/fonts/LICENSE.txt', 'vendor/ort/LICENSE.txt', 'vendor/mediabunny/LICENSE.txt',
+  // « Masquer une personne » : chargés à la première utilisation seulement (trop lourds pour la copie hors ligne)
+  ...['encoder', 'decoder_point', 'decoder_init', 'decoder_track', 'memory_encoder', 'memory_attention'].map((n) => `models/edgetam/${n}.onnx`),
+  'models/edgetam/constants.json', 'models/edgetam/LICENSE.txt',
+  'vendor/ort-webgpu/ort.webgpu.min.mjs', 'vendor/ort-webgpu/ort-wasm-simd-threaded.asyncify.mjs',
+  'vendor/ort-webgpu/ort-wasm-simd-threaded.asyncify.wasm', 'vendor/ort-webgpu/LICENSE.txt',
 ];
 
 rmSync(dist, { recursive: true, force: true });
