@@ -39,7 +39,9 @@ export async function loadEngine(base, progress, names = ['encoder', 'decoder_po
   const { ort, s, gpu } = engine;
   const missing = names.filter((n) => !s[n]);
   for (const [i, n] of missing.entries()) {
-    const opts = { executionProviders: [gpu ? 'webgpu' : 'wasm'] };
+    // mémoire graphique rendue après chaque calcul : par défaut ONNX Runtime la garde en réserve, et comme la mémoire du suivi
+    // change de taille à chaque image, cette réserve grossit sans servir jusqu'à ce que Safari ferme l'onglet
+    const opts = { executionProviders: [gpu ? { name: 'webgpu', storageBufferCacheMode: 'lazyRelease' } : 'wasm'] };
     if (gpu && ON_GPU[n]) opts.preferredOutputLocation = ON_GPU[n];
     s[n] = await ort.InferenceSession.create(engine.base + `models/edgetam/${n}.onnx`, opts);
     if (progress) progress((i + 1) / missing.length);
