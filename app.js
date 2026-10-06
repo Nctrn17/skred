@@ -838,6 +838,9 @@ function openReview(t) {
   }
   sizeTimeline();
   refreshPanels();
+  const crash = lastCrash();
+  if (crash) $('hint').textContent = `Le dernier « Masquer une personne » s'est arrêté net (${crash.etape}`
+    + (crash.image ? `, image ${crash.image} sur ${crash.sur}` : '') + `, vidéo ${crash.taille}${crash.gpu === false ? ', sans carte graphique' : ''}).`;
   goTo(t);
 }
 
@@ -1040,7 +1043,10 @@ async function previewPerson(from) {
     hint.textContent = 'Recherche de la zone…';
     const t = isPhoto() ? 0 : personIndex(S.t) / PERSON_FPS;
     const img = isPhoto() ? S.img : (await personImages([t]).next()).value;
-    const opts = await new PERSON.Track(from).options(await PERSON.encode(img));
+    crumb({ at: Date.now(), etape: 'aperçu', taille: `${S.W}x${S.H}` });
+    const enc = await PERSON.encode(img);
+    const opts = await new PERSON.Track(from).options(enc);
+    PERSON.release(enc);
     if (job.cancelled) throw new Error('annulé');
     if (!opts.length) { hint.textContent = 'Aucune personne trouvée à cet endroit. Réessaie en touchant le corps.'; S.personPreview = null; }
     else S.personPreview = { from, t, opts, pick: 0, canvases: opts.map((o) => PERSON.preview(o.bits)) };
@@ -1050,6 +1056,7 @@ async function previewPerson(from) {
     if (window.diag) window.diag('personne : ' + (err && err.message));
   }
   S.personJob = null;
+  crumb(null);
   setPersonButton();
   if (S.personPreview && !isPhoto()) await goTo(S.personPreview.t); else renderReview();
 }
@@ -1075,18 +1082,35 @@ function setPersonButton() {
 
 // Images de la vidéo aux instants demandés, dans cet ordre, en 1024 × 1024 (la taille vue par EdgeTAM).
 // Lues directement dans le fichier quand l'export rapide est possible : Safari sur iPhone redonne parfois l'image
-// précédente après un saut dans la lecture, et la silhouette restait alors figée. Par paquets de 20 images, lues dans
-// l'ordre du fichier puis rendues dans l'ordre demandé (le suivi vers le début de la vidéo les parcourt à l'envers).
+// précédente après un saut dans la lecture, et la silhouette restait alors figée. Peu d'images en mémoire à la fois
+// (sur iPhone, Safari ferme l'onglet qui en garde trop) : vers la fin de la vidéo, une seule, lue dans l'ordre du fichier ;
+// vers le début, des paquets de 6 lus dans l'ordre du fichier puis rendus à l'envers. Chaque toile resservant ensuite,
+// l'image rendue doit être utilisée avant de demander la suivante.
 async function* personImages(times) {
-  const canvasFor = () => { const c = document.createElement('canvas'); c.width = c.height = 1024; return c; };
+  const pool = [];
+  const canvasAt = (i) => {
+    if (!pool[i]) { pool[i] = document.createElement('canvas'); pool[i].width = pool[i].height = 1024; }
+    return pool[i];
+  };
   if (S.fast && MB && S.file) {
     const input = new MB.Input({ source: new MB.BlobSource(S.file), formats: MB.ALL_FORMATS });
     const sink = new MB.VideoSampleSink(await input.getPrimaryVideoTrack());
-    for (let i = 0; i < times.length; i += 20) {
-      const chunk = times.slice(i, i + 20), sorted = [...chunk].sort((a, b) => a - b), got = new Map();
+    const forward = times.every((t, i) => i === 0 || t >= times[i - 1]);
+    const size = forward ? times.length : 6;
+    for (let i = 0; i < times.length; i += size) {
+      const chunk = times.slice(i, i + size), sorted = [...chunk].sort((a, b) => a - b);
+      if (forward) {
+        for await (const sample of sink.samplesAtTimestamps(sorted.map((t) => t + S.start))) {
+          const c = canvasAt(0);
+          if (sample) { sample.draw(c.getContext('2d'), 0, 0, 1024, 1024); sample.close(); }
+          yield sample ? c : null;
+        }
+        continue;
+      }
+      const got = new Map();
       let j = 0;
       for await (const sample of sink.samplesAtTimestamps(sorted.map((t) => t + S.start))) {
-        const c = canvasFor();
+        const c = canvasAt(j);
         if (sample) { sample.draw(c.getContext('2d'), 0, 0, 1024, 1024); sample.close(); }
         got.set(sorted[j++], sample ? c : null);
       }
@@ -1096,10 +1120,21 @@ async function* personImages(times) {
   }
   for (const t of times) {
     await seekTo(t);
-    const c = canvasFor();
+    const c = canvasAt(0);
     c.getContext('2d').drawImage(video, 0, 0, 1024, 1024);
     yield c;
   }
+}
+
+// Journal du suivi en cours, gardé sur le téléphone : si Safari ferme l'onglet en plein suivi, on le dit au retour.
+const CRUMB = 'skred-personne';
+const crumb = (v) => { try { if (v) localStorage.setItem(CRUMB, JSON.stringify(v)); else localStorage.removeItem(CRUMB); } catch { /* sans stockage */ } };
+function lastCrash() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CRUMB) || 'null');
+    localStorage.removeItem(CRUMB);
+    return v && Date.now() - v.at < 3600e3 ? v : null;
+  } catch { return null; }
 }
 
 $('personBtn').onclick = () => {
@@ -1142,6 +1177,7 @@ async function maskPerson(box, pick = 0) {
           const { value: img } = await images.next();
           if (job.cancelled) break;
           if (!img) continue;
+          crumb({ at: Date.now(), etape: 'suivi', image: done + 1, sur: total, gpu: engine.gpu, taille: `${S.W}x${S.H}` });
           const bits = await track.step(await PERSON.encode(img));
           if (!person.sils.has(k)) { person.sils.set(k, PERSON.silhouette(bits)); done++; }
           const left = (performance.now() - started) / done * (total - done) / 1000;
@@ -1159,6 +1195,7 @@ async function maskPerson(box, pick = 0) {
     if (window.diag) window.diag('personne : ' + (err && err.message));
   }
   S.personJob = null;
+  crumb(null);
   await keepAwake(false);
   setPersonButton();
   refreshPanels();
