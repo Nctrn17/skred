@@ -41,6 +41,8 @@ You don't have to take our word for it. Each point below can be checked without 
   skred.fr itself only serves static files: there is no server-side code that could receive a video.
 - **The automated test** (see "Testing") fails if a single request goes out after the page has loaded.
 - **The code is public.** Network calls can be found in seconds: `grep -rn "fetch(" app.js sw.js`.
+- **The website serves this code.** `bash test/verifier-site.sh` downloads every file from skred.fr and compares it,
+  byte for byte, with the latest commit of the repository (see "Testing").
 
 ## How it works
 
@@ -130,6 +132,16 @@ bash test/verifier-tiers.sh
 Downloads ONNX Runtime and Mediabunny from npm and checks that the files in the repository are
 byte-for-byte identical to the originals. One edit, redone by the script: the `sourceMappingURL` line of
 `ort.wasm.min.mjs` is emptied. The model was retrained for skred: its recipe is in `test/entrainer-nuit.sh`.
+
+### The live website
+
+```bash
+bash test/verifier-site.sh
+```
+
+Downloads every file served by skred.fr (the same list as `build.mjs`) and compares it, byte for byte,
+with its version in the latest commit. Also checks that the `Content-Security-Policy` header received is the one in `_headers`.
+Other address: `SITE=https://… bash test/verifier-site.sh`.
 
 ### Detection accuracy
 

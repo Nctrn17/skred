@@ -39,6 +39,8 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
   skred.fr lui-même ne sert que des fichiers statiques : aucun code côté serveur ne pourrait recevoir une vidéo.
 - **Le test automatique** (voir « Tester ») échoue si une seule requête part après le chargement de la page.
 - **Le code est public.** Les envois réseau se cherchent en quelques secondes : `grep -rn "fetch(" app.js sw.js`.
+- **Le site sert ce code-là.** `bash test/verifier-site.sh` télécharge chaque fichier de skred.fr et le compare,
+  à l'octet près, au dernier commit du dépôt (voir « Tester »).
 
 ## Comment c'est fait
 
@@ -132,6 +134,16 @@ bash test/verifier-tiers.sh
 Télécharge ONNX Runtime et Mediabunny depuis npm et vérifie que les fichiers du dépôt sont identiques aux
 originaux, à l'octet près. Seule retouche, refaite par le script : la ligne `sourceMappingURL` de `ort.wasm.min.mjs`
 est vidée. Le modèle, lui, a été réentraîné pour skred : sa recette est dans `test/entrainer-nuit.sh`.
+
+### Le site en ligne
+
+```bash
+bash test/verifier-site.sh
+```
+
+Télécharge chaque fichier servi par skred.fr (la même liste que `build.mjs`) et le compare, à l'octet près,
+à sa version dans le dernier commit. Vérifie aussi que l'en-tête `Content-Security-Policy` reçu est celui de `_headers`.
+Autre adresse : `SITE=https://… bash test/verifier-site.sh`.
 
 ### Précision de la détection
 

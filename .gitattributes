@@ -1,2 +1,5 @@
+# Fins de ligne Unix partout : le site est publié depuis ce dossier, et test/verifier-site.sh
+# compare skred.fr au dépôt à l'octet près.
+* text=auto eol=lf
 android/gradlew text eol=lf
 *.bat text eol=crlf
