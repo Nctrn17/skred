@@ -840,7 +840,7 @@ function openReview(t) {
   refreshPanels();
   const crash = lastCrash();
   if (crash) $('hint').textContent = `Le dernier « Masquer une personne » s'est arrêté net (${crash.etape}`
-    + (crash.image ? `, image ${crash.image} sur ${crash.sur}` : '') + `, vidéo ${crash.taille}${crash.gpu === false ? ', sans carte graphique' : ''}).`;
+    + (crash.image ? `, image ${crash.image} sur ${crash.sur}` : '') + (crash.calcul ? `, calcul : ${crash.calcul}` : '') + `, vidéo ${crash.taille}${crash.gpu === false ? ', sans carte graphique' : ''}).`;
   goTo(t);
 }
 
@@ -1195,7 +1195,9 @@ async function maskPerson(box, pick = 0, chosen = null) {
           const { value: img } = await images.next();
           if (job.cancelled) break;
           if (!img) continue;
-          crumb({ at: Date.now(), etape: 'suivi', image: done + 1, sur: total, gpu: engine.gpu, taille: `${S.W}x${S.H}` });
+          const c = { at: Date.now(), etape: 'suivi', image: done + 1, sur: total, gpu: engine.gpu, taille: `${S.W}x${S.H}` };
+          PERSON.onStage((calcul) => crumb({ ...c, calcul }));
+          crumb(c);
           const bits = await track.step(await PERSON.encode(img));
           if (!person.sils.has(k)) { person.sils.set(k, PERSON.silhouette(bits)); done++; }
           const left = (performance.now() - started) / done * (total - done) / 1000;

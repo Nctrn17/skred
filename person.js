@@ -64,6 +64,10 @@ export function release(...outs) {
 const input = new Float32Array(3 * SIDE * SIDE);   // un seul tampon d'entrée, réutilisé (12 Mo)
 
 /** Fait passer une image (vidéo, photo) dans l'encodeur. L'image est étirée en 1024 × 1024, comme à l'entraînement. */
+// Étape en cours (« encodeur », « attention »…), signalée avant chaque calcul : utile si Safari ferme l'onglet en plein calcul.
+let stage = () => {};
+export const onStage = (f) => { stage = f; };
+
 export async function encode(src) {
   const { ort, s } = engine;
   wctx.drawImage(src, 0, 0, SIDE, SIDE);
@@ -74,6 +78,7 @@ export async function encode(src) {
     x[n + i] = (px[i * 4 + 1] / 255 - MEAN[1]) / STD[1];
     x[2 * n + i] = (px[i * 4 + 2] / 255 - MEAN[2]) / STD[2];
   }
+  stage('encodeur');
   return s.encoder.run({ image: new ort.Tensor('float32', x, [1, 3, SIDE, SIDE]) });
 }
 
@@ -144,13 +149,16 @@ export class Track {
       }
       const ptrs = [this.cond.ptr];
       for (let d = 1; d < MAX_PTRS; d++) { const p = this.past.get(this.i - d); if (p) ptrs.push(p.ptr); }
+      stage('attention');
       const att = await s.memory_attention.run({ feat: enc.feat,
         mem: T(concat(mems, 512 * 64), [mems.length, 512, 64]), mem_pos: T(concat(poss, 512 * 64), [poss.length, 512, 64]),
         ptr: T(concat(ptrs, 256), [ptrs.length * 4, 64]) });
+      stage('décodeur');
       out = await s.decoder_track.run({ feat: att.pix, hr0: enc.hr0, hr1: enc.hr1,
         points: T(new Float32Array(2), [1, 1, 2]), labels: T(Int32Array.of(-1), [1, 1], 'int32') });
       release(att);
     }
+    stage('mémoire');
     const m = await s.memory_encoder.run({ feat: enc.feat, mask: out.mask, first: T(Float32Array.of(this.cond ? 0 : 1), [1]) });
     const entry = { mem: m.mem.data.slice(), ptr: out.ptr.data.slice() };
     if (!this.cond) this.cond = { ...entry, pos: m.mem_pos.data.slice() };
