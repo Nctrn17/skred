@@ -171,6 +171,10 @@ the same rule with CenterFace, the model used by [deface](https://github.com/ORB
 - [Mediabunny](https://github.com/Vanilagy/mediabunny), MPL-2.0 licence (`vendor/mediabunny/`).
 - Archivo and JetBrains Mono fonts, SIL OFL 1.1 licence (`vendor/fonts/`).
 
+## Contributing
+
+Before opening a PR, read [CONTRIBUTING.md](CONTRIBUTING.md) (in French; you can write in English).
+
 ## Licence
 
 Code under the [AGPL-3.0](LICENSE). You may copy, modify and host it,

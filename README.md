@@ -172,6 +172,10 @@ WIDER FACE (validation, de jour) et DARK FACE (de nuit). `entrainement/eval-cent
 - [Mediabunny](https://github.com/Vanilagy/mediabunny), licence MPL-2.0 (`vendor/mediabunny/`).
 - Polices Archivo et JetBrains Mono, licence SIL OFL 1.1 (`vendor/fonts/`).
 
+## Contribuer
+
+Avant d'ouvrir une PR, lis [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Licence
 
 Code sous licence [AGPL-3.0](LICENSE). Tu peux le copier, le modifier et le mettre en ligne,
