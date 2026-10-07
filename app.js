@@ -156,8 +156,7 @@ function judge(boxes) {
 /* ---------- Écrans ---------- */
 
 function show(step) {
-  for (const s of ["home", "scan", "review", "export", "done"])
-    $("s-" + s).hidden = s !== step;
+  for (const s of ["home", "scan", "review", "export", "done"]) $("s-" + s).hidden = s !== step
   const host = {
     scan: $("scanFrame"),
     review: $("stage"),

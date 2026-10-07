@@ -74,7 +74,20 @@
     </div>
   </div>
 
-<!-- Vérification -->
+<!-- Analyse -->
+<section id="s-scan" class="screen paper" hidden>
+  <header class="top"><span class="brand">skred</span></header>
+  <div class="middle">
+    <span class="big" id="scanText">0%</span>
+    <div class="square frame" id="scanFrame">
+      <span class="tag">Image en cours</span>
+      <span class="fill up" id="scanBar"></span>
+    </div>
+  </div>
+  <button class="link" id="scanCancel" type="button">Annuler</button>
+</section>
+
+  <!-- Vérification -->
 <section id="s-review" class="screen ink" hidden>
   <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
   <div class="stage" id="stage">
@@ -86,39 +99,22 @@
       <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
       <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
     </div>
-    <button class="link" id="scanCancel" type="button">Annuler</button>
-  </section>
-
-  <!-- Vérification -->
-  <section id="s-review" class="screen ink" hidden>
-    <div class="stage" id="stage">
-      <canvas id="view"></canvas>
-      <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
-      <button class="link small" id="restoreAll" type="button" hidden></button>
-      <div class="maskBar" id="maskBar" hidden>
-        <button type="button" id="mMinus" title="Plus petit">−</button>
-        <button type="button" id="mPlus" title="Plus grand">+</button>
-        <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
-        <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
-      </div>
+  </div>
+  <div class="deck">
+    <div class="timeline videoOnly" id="timeline">
+      <button type="button" id="prev" class="step" title="Image précédente">‹</button>
+      <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo"></div>
+      <button type="button" id="next" class="step" title="Image suivante">›</button>
     </div>
-    <div class="deck">
-      <div class="timeline videoOnly" id="timeline">
-        <button type="button" id="prev" class="step" title="Image précédente">‹</button>
-        <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01"
-            value="0" aria-label="Position dans la vidéo"></div>
-        <button type="button" id="next" class="step" title="Image suivante">›</button>
-      </div>
-      <div class="row">
-        <button type="button" id="play" class="ctl videoOnly" title="Lecture">▶</button>
-        <button type="button" id="styleBtn" class="ctl" title="Style du masque"><span class="sq"></span></button>
-        <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Son d'origine. Touchez pour le brouiller (voix et ambiance)."
-          aria-label="Son d'origine. Touchez pour le brouiller (voix et ambiance).">SON</button>
-        <button type="button" id="export" class="go">Exporter</button>
-      </div>
-      <p class="note videoOnly" id="audioNote">Son d'origine. Touchez pour le brouiller (voix et ambiance).</p>
+    <div class="row">
+      <button type="button" id="play" class="ctl videoOnly" title="Lecture">▶</button>
+      <button type="button" id="styleBtn" class="ctl" title="Style du masque"><span class="sq"></span></button>
+      <button type="button" id="audioBtn" class="ctl mono videoOnly on" title="Garder le son">SON</button>
+      <button type="button" id="export" class="go">Exporter</button>
     </div>
-  </section>
+    <p class="note videoOnly" id="audioNote">Son gardé. La voix aussi permet de reconnaître quelqu'un.</p>
+  </div>
+</section>
 
   <!-- Création -->
   <section id="s-export" class="screen paper" hidden>
