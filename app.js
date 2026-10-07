@@ -24,6 +24,8 @@ const BIG_FROM = 0.12, BIG_TO = 0.25, BIG_SCORE = 0.85, LOW_SCORE = 0.7;
 // Score minimal d'un cadre retrouvé sur l'image réduite (seconde passe) pour être retenu.
 const JUDGE = { confirm: MIN_SCORE };
 const RULE = { min: MIN_SCORE, small: SMALL_SCORE, big: BIG_SCORE, from: BIG_FROM, to: BIG_TO };
+// Essai (?haut=2) : passe de plus sur l'image agrandie, pour les petits visages (voir detectBoth). Désactivée par défaut.
+RULE.up = Number(new URLSearchParams(location.search).get('haut')) || 0;
 // La passe sur l'image réduite double presque le temps d'analyse. Pour rattraper les gros plans ratés, elle n'est faite
 // qu'une image sur 3 : un masque déborde déjà de 4 images avant et après chaque visage, il reste donc posé sans trou.
 // Elle est faite en plus sur toute image où un grand cadre attend sa confirmation (voir detectBoth).
@@ -1754,7 +1756,7 @@ $('file').addEventListener('change', (e) => {
 
 // Accès aux données pour les tests : en local, ou avec ?debug (version de test de l'app Android).
 if (DEBUG) window.skred = {
-  S, frameIndex, paint,
+  S, frameIndex, paint, maskPerson, personAt, personIndex, goTo,
   retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); },
   // Refait le tri des détections gardées de l'analyse (S.found) avec d'autres réglages, puis le suivi.
   rejudge: (o, t = {}, r = {}) => {
