@@ -1,7 +1,7 @@
-// Mesure sur vidéos réelles : le site analyse chaque extrait de test/prepare-reel.py comme pour un vrai utilisateur
-// (suivi d'une image à l'autre compris), puis on regarde, sur les images corrigées à la main (test/annoter-reel.py),
-// si chaque visage est couvert par un masque (70 % de sa surface au moins, comme test/eval-faces.py).
-// Usage : node dev-server.mjs (autre terminal), puis node test/eval-reel.mjs [dossier des banques] [nom du résultat]
+// Mesure sur vidéos réelles : le site analyse chaque extrait de entrainement/prepare-reel.py comme pour un vrai utilisateur
+// (suivi d'une image à l'autre compris), puis on regarde, sur les images corrigées à la main (entrainement/annoter-reel.py),
+// si chaque visage est couvert par un masque (70 % de sa surface au moins, comme entrainement/eval-faces.py).
+// Usage : node outils/dev-server.mjs (autre terminal), puis node entrainement/eval-reel.mjs [dossier des banques] [nom du résultat]
 // Les extraits sont copiés dans test/reel/ (non suivi par git) pour que le serveur local les serve.
 import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,8 +21,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const ref = JSON.parse(readFileSync(join(DATA, 'reel', REEL), 'utf8')).filter((e) => e.checked || !ONLY_CHECKED);
 const clips = [...new Set(ref.map((e) => e.clip))];
-mkdirSync(join(here, 'reel'), { recursive: true });
-for (const c of clips) if (!existsSync(join(here, 'reel', c))) copyFileSync(join(DATA, 'reel', 'clips', c), join(here, 'reel', c));
+mkdirSync(join(here, '..', 'test', 'reel'), { recursive: true });
+for (const c of clips) if (!existsSync(join(here, '..', 'test', 'reel', c))) copyFileSync(join(DATA, 'reel', 'clips', c), join(here, '..', 'test', 'reel', c));
 
 const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'skred-'))}`,
@@ -56,7 +56,7 @@ function coverage(f, masks) {
 }
 
 const BANDS = [[0.03, 0.12], [0.12, 0.25], [0.25, 9]];
-// VARIANTES='{"nom": {"judge": {...}, "track": {...}}, ...}' : après une seule analyse par extrait, le tri des détections
+// VARIANTES='{"nom": {"judge": {...}, "track": {...}, "rule": {...}}, ...}' : après une seule analyse par extrait, le tri des détections
 // et le suivi sont refaits avec chaque jeu de réglages (window.skred.rejudge) : mêmes détections pour toutes les variantes.
 const VARIANTS = process.env.VARIANTES ? JSON.parse(process.env.VARIANTES) : { [LABEL]: null };
 const acc = Object.fromEntries(Object.keys(VARIANTS).map((v) => [v, { total: BANDS.map(() => 0), missed: BANDS.map(() => 0), area: 0, off: 0, n: 0, perClip: {}, detail: [] }]));
@@ -86,10 +86,10 @@ for (const clip of clips) {
   let line = clip.padEnd(45);
   for (const [name, params] of Object.entries(VARIANTS)) {
     // Chaque variante : { judge: {...}, track: {...} }, appliquée par-dessus les réglages d'origine du site.
-    if (params) await run(`window.skred.rejudge(${JSON.stringify({ confirm: 0.3, ...params.judge })}, ${JSON.stringify({ lowGrow: 1.5, ...params.track })});`);
+    if (params) await run(`window.skred.rejudge(${JSON.stringify({ confirm: 0.3, ...params.judge })}, ${JSON.stringify({ lowGrow: 1.5, hold: 4, unionMax: 4, ...params.track })}, ${JSON.stringify({ small: 0.2, ...params.rule })});`);
     const got = await run(`const S = window.skred.S; const short = Math.min(S.W, S.H);
-      const tracks = S.tracks.filter(t => !t.removed).map(t => { const d = [...t.dets.values()]; return { n: d.length, w: Math.max(...d.map(x => x.w)) / short, s: Math.max(...d.map(x => x.s)), lo: d.filter(x => x.lo).length, sure: d.filter(x => x.sure).length, weak: d.filter(x => x.weak).length }; });
-      return { tracks, W: S.W, H: S.H, masks: ${JSON.stringify(frames)}.map(i => (S.frames[i] || []).filter(m => !m.track.removed).map(({ x, y, w, h }) => ({ x, y, w, h }))) };`);
+      const tracks = S.tracks.map(t => { const d = [...t.dets.values()]; return { n: d.length, w: Math.max(...d.map(x => x.w)) / short, s: Math.max(...d.map(x => x.s)), lo: d.filter(x => x.lo).length, sure: d.filter(x => x.sure).length, weak: d.filter(x => x.weak).length }; });
+      return { tracks, W: S.W, H: S.H, masks: ${JSON.stringify(frames)}.map(i => (S.frames[i] || []).map(({ x, y, w, h }) => ({ x, y, w, h }))) };`);
     const A = acc[name];
     let cm = 0, ct = 0;
     entries.forEach((e, k) => {

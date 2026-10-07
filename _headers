@@ -1,4 +1,4 @@
-# En-têtes envoyés par Cloudflare avec chaque fichier. Le serveur local (dev-server.mjs) relit la politique de sécurité.
+# En-têtes envoyés par Cloudflare avec chaque fichier. Le serveur local (outils/dev-server.mjs) relit la politique de sécurité.
 # - Content-Security-Policy : le navigateur n'a le droit de se connecter qu'au site lui-même, et skred ne peut pas être
 #   affiché dans un cadre sur un autre site (frame-ancestors, X-Frame-Options).
 # - Strict-Transport-Security : après une première visite, le navigateur n'utilise plus que HTTPS pour skred.fr.

@@ -26,6 +26,6 @@ compare vendor/ort/ort.wasm.min.mjs ort.wasm.min.mjs "ONNX Runtime : ort.wasm.mi
 compare vendor/mediabunny/mediabunny.min.mjs mb/package/dist/bundles/mediabunny.min.mjs "Mediabunny : mediabunny.min.mjs"
 
 # Le modèle (models/yunet.onnx) n'est plus un fichier tiers tel quel : il a été réentraîné pour skred.
-# Sa recette est dans test/entrainer-nuit.sh, ses mesures dans models/README.md.
+# Sa recette est dans entrainement/entrainer-nuit.sh, ses mesures dans models/README.md.
 
 exit $ok

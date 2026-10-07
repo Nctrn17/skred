@@ -3,7 +3,7 @@
 # qui décide si un cadre est assez sûr pour être masqué. Compte, pour chaque réglage :
 #  - les visages qui ne seraient pas couverts (au moins 70 % de leur surface sous un masque) ;
 #  - les grands masques posés là où il n'y a aucun visage.
-# Usage : python test/eval-faces.py <dossier des banques>   (besoin : pip install onnxruntime opencv-python numpy)
+# Usage : python entrainement/eval-faces.py <dossier des banques>   (besoin : pip install onnxruntime opencv-python numpy)
 # Le dossier contient WIDER_val/ et wider_face_split/ (WIDER FACE, partie validation), et darkface/image/ et
 # darkface/label/ (DARK FACE, https://flyywh.github.io/CVPRW2019LowLight/). Les détections sont gardées en cache.
 import json

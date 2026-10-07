@@ -1,6 +1,6 @@
-# Correction à la main des visages pré-repérés par test/prepare-reel.py. Ouvre une page locale :
+# Correction à la main des visages pré-repérés par entrainement/prepare-reel.py. Ouvre une page locale :
 # clic sur un cadre : le retirer ; glisser : ajouter un visage ; Entrée : valider et passer à la suivante.
-# Usage : python test/annoter-reel.py <dossier des banques>   puis ouvrir http://localhost:8765
+# Usage : python entrainement/annoter-reel.py <dossier des banques>   puis ouvrir http://localhost:8765
 import json
 import os
 import sys

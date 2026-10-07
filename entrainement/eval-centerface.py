@@ -1,6 +1,6 @@
 # Compare le détecteur de skred (YuNet, règle du site) à CenterFace, le modèle de deface (https://github.com/ORB-HD/deface),
-# sur les mêmes banques de photos annotées que test/eval-faces.py (WIDER FACE, DARK FACE).
-# Usage : python test/eval-centerface.py <dossier des banques> <chemin de centerface.onnx>
+# sur les mêmes banques de photos annotées que entrainement/eval-faces.py (WIDER FACE, DARK FACE).
+# Usage : python entrainement/eval-centerface.py <dossier des banques> <chemin de centerface.onnx>
 # (centerface.onnx : https://github.com/ORB-HD/deface/tree/master/deface ; besoin : pip install onnx onnxruntime opencv-python numpy)
 # Les détections de CenterFace sont gardées en cache (detections-centerface-*.json), à côté de celles de YuNet.
 import importlib.util

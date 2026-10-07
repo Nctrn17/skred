@@ -60,7 +60,7 @@ dependencies {
 }
 
 // Copie les fichiers du site dans les assets de l'app, avant chaque construction.
-// Même liste que build.mjs (le site publié) : celle de sw.js, plus la page, les icônes et les licences.
+// Même liste que outils/build.mjs (le site publié) : celle de sw.js, plus la page, les icônes et les licences.
 // Ni le service worker ni _headers : l'app n'en a pas besoin.
 def site = rootProject.file('..')
 tasks.register('copySite', Copy) {

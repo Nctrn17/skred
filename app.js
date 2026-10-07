@@ -1,6 +1,6 @@
 // skred : masque les visages d'une vidéo ou d'une photo, entièrement dans le navigateur.
-// Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans vercel.json).
-import { createDetector, detectBoth, neededScore } from "./detector.js";
+// Aucune requête réseau après le chargement de la page (voir aussi la politique de sécurité dans _headers).
+import { createDetector, detectBoth, neededScore } from './detector.js';
 
 // Ouvert en http (certains navigateurs, comme Opera sur iPhone, ne passent pas tout seuls en https) : le navigateur
 // coupe alors la copie hors ligne, l'export rapide et d'autres fonctions. On repart aussitôt sur l'adresse en https.
@@ -23,7 +23,7 @@ const $ = (id) => document.getElementById(id);
 
 const MIN_SCORE = 0.3; // seuil de détection bas : on préfère trop masquer que pas assez
 // Les petits visages (moins de 12 % du petit côté) sont presque tous les ratés. Un petit carré posé à tort gêne peu :
-// pour eux, le seuil descend à 0,2 (visages ratés de jour -26 %, de nuit -34 %, mesuré par test/eval-faces.py).
+// pour eux, le seuil descend à 0,2 (visages ratés de jour -26 %, de nuit -34 %, mesuré par entrainement/eval-faces.py).
 const SMALL_SCORE = 0.2;
 // La nuit, le détecteur croit voir de grands visages peu sûrs dans le ciel, sur le trottoir ou dans une silhouette floue.
 // Un grand cadre (plus de 12 % du petit côté de l'image) doit donc être soit très sûr (jusqu'à 0,85 à partir de 25 %),
@@ -57,20 +57,20 @@ const TRACK = {
   match: 1.6, // distance maximale entre deux images, en largeurs de visage
   lowMatch: 0.6, // même chose pour une détection très incertaine
   // Taille maximale d'une détection incertaine qui prolonge un masque, en fois la dernière taille sûre. Mesuré sur
-  // 36 vidéos réelles (test/eval-reel.mjs) : surface masquée sans visage 20 % -> 16 % ; les 2 visages de plus laissés
+  // 36 vidéos réelles (entrainement/eval-reel.mjs) : surface masquée sans visage 20 % -> 16 % ; les 2 visages de plus laissés
   // visibles sur 1 012 n'étaient couverts que par hasard, par un pavé posé à côté.
   lowGrow: 1.5,
-  minReach: 0.02, // distance minimale tolérée (part du petit côté de l'image), pour les très petits visages
+  hold: HOLD_FRAMES,  // images de masque ajoutées avant et après un visage
+  unionMax: 4,      // une case couvrant 3 positions successives est gardée si elle ne dépasse pas 4 fois la plus grande
+  minReach: 0.02,   // distance minimale tolérée (part du petit côté de l'image), pour les très petits visages
 };
 const DET_SIDE_DEEP = 1920; // taille de l'image analysée (plus grand côté)
 const DET_SIDE = 1280; // avec l'option « aller plus vite »
 const MAX_SIDE = 1920; // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = "2026-10-06.3"; // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
-const DEBUG =
-  location.hostname === "localhost" ||
-  new URLSearchParams(location.search).has("debug");
+const VERSION = '2026-10-07.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
@@ -95,12 +95,11 @@ const S = {
   // Horloge : partout dans l'app, t va de 0 à duration. Le fichier, lui, peut avoir une horloge qui ne démarre pas
   // à 0 (vidéo recoupée, montée, transférée) : start est l'heure du fichier qui correspond à t = 0, et first
   // l'instant t de sa première image. Sans ces deux valeurs, les masques tomberaient à côté des visages.
-  start: 0,
-  first: 0,
-  tracks: [], // un suivi par visage : { id, dets: Map(image -> cadre), removed }
-  frames: [], // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
-  manual: [], // masques ajoutés à la main : [{ id, cx, cy, size, t0, t1 }]
-  sel: null, // masque sélectionné : { manual } ou { track }
+  start: 0, first: 0,
+  tracks: [],       // un suivi par visage : { id, dets: Map(image -> cadre), off: retraits faits à la main (isOff) }
+  frames: [],       // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
+  manual: [],       // masques ajoutés à la main : [{ id, cx, cy, size, t0, t1 }]
+  sel: null,        // masque sélectionné : { manual } ou { track }
   nextId: 1,
   t: 0,
   style: "noir",
@@ -1007,7 +1006,7 @@ function buildTracks(results) {
         )
           continue;
       }
-      const t = { id: tracks.length + 1, dets: new Map(), removed: false };
+      const t = { id: tracks.length + 1, dets: new Map(), off: [] };
       tracks.push(t);
       active.push(t);
       assign(d, t);
@@ -1019,10 +1018,8 @@ function buildTracks(results) {
   const frames = Array.from({ length: N }, () => []);
   for (const t of tracks) {
     const idx = [...t.dets.keys()];
-    const first = idx[0],
-      last = idx[idx.length - 1];
-    const a = Math.max(0, first - HOLD_FRAMES),
-      b = Math.min(N - 1, last + HOLD_FRAMES);
+    const first = idx[0], last = idx[idx.length - 1];
+    const a = Math.max(0, first - TRACK.hold), b = Math.min(N - 1, last + TRACK.hold);
     const path = [];
     let k = 0;
     for (let j = a; j <= b; j++) {
@@ -1049,8 +1046,7 @@ function buildTracks(results) {
       const biggest = Math.max(...near.map((r) => r.w * r.h));
       // Si le visage a sauté loin d'une image à l'autre (caméra qui tourne vite), une seule case
       // couvrirait tout l'écran : on garde alors les positions séparées.
-      if (box.w * box.h <= 4 * biggest)
-        frames[j].push({ ...grow(box), track: t });
+      if (box.w * box.h <= TRACK.unionMax * biggest) frames[j].push({ ...grow(box), track: t });
       else for (const r of near) frames[j].push({ ...grow(r), track: t });
     }
   }
@@ -1065,17 +1061,25 @@ function manualRect(m) {
   return { x: m.cx * S.W - s / 2, y: m.cy * S.H - s / 2, w: s, h: s };
 }
 
-const manualAt = (t) =>
-  S.manual.filter((m) => t >= m.t0 - 1e-3 && t <= m.t1 + 1e-3);
-const inside = (r, x, y) =>
-  x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+// Retraits d'un masque automatique : liste de { from, off, at }, le dernier dont « from » est atteint décide.
+// Le premier retrait vaut pour tout le visage suivi ; ensuite, retirer ou remettre ne vaut qu'à partir de l'image
+// où l'on est (le suivi peut passer d'une personne à une autre). Refaire le geste sur la même image l'annule.
+const isOff = (tr, j) => { let off = false; for (const e of tr.off) if (e.from <= j) off = e.off; return off; };
+const isRemoved = (tr) => tr.off.some((e) => e.off);
+function toggleTrack(tr, j) {
+  const last = tr.off[tr.off.length - 1];
+  if (last && last.at === j) { tr.off.pop(); return; }
+  const off = !isOff(tr, j);
+  tr.off = tr.off.length ? [...tr.off.filter((e) => e.from < j), { from: j, off, at: j }] : [{ from: 0, off, at: j }];
+}
+
+const manualAt = (t) => S.manual.filter((m) => t >= m.t0 - 1e-3 && t <= m.t1 + 1e-3);
+const inside = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
 function paint(ctx, t, edit) {
-  const auto = S.frames[frameIndex(t)] || [];
-  const rects = [
-    ...auto.filter((b) => !b.track.removed),
-    ...manualAt(t).map(manualRect),
-  ];
+  const j = frameIndex(t);
+  const auto = S.frames[j] || [];
+  const rects = [...auto.filter((b) => !isOff(b.track, j)), ...manualAt(t).map(manualRect)];
 
   // D'abord les cases pleines : c'est elles qui protègent.
   ctx.fillStyle = "#000";
@@ -1109,8 +1113,8 @@ function paint(ctx, t, edit) {
   };
   for (const b of auto) {
     const selected = S.sel && S.sel.track === b.track;
-    if (b.track.removed) frame(b, "#ff6b5e", selected);
-    else if (selected) frame(b, "#e9ff45", true);
+    if (isOff(b.track, j)) frame(b, '#ff6b5e', selected);
+    else if (selected) frame(b, '#e9ff45', true);
   }
   for (const m of manualAt(t))
     frame(manualRect(m), "#e9ff45", S.sel && S.sel.manual === m);
@@ -1146,7 +1150,7 @@ function renderReview() {
   paint(vctx, S.t, true);
   $("time").value = S.t;
   drawTimeline();
-  placeMaskBar();
+  refreshPanels();   // le bouton × / ↺ dépend de l'image affichée
 }
 
 function openReview(t) {
@@ -1210,17 +1214,17 @@ function drawTimeline() {
     rowH = Math.max(2, Math.floor(H / 6));
   ctx.fillStyle = "#efede6";
   S.tracks.forEach((t, i) => {
-    if (t.removed) return;
     const idx = [...t.dets.keys()];
-    const a = Math.max(0, idx[0] - HOLD_FRAMES),
-      b = Math.min(N - 1, idx[idx.length - 1] + HOLD_FRAMES);
+    const a = Math.max(0, idx[0] - TRACK.hold), b = Math.min(N - 1, idx[idx.length - 1] + TRACK.hold);
     const y = Math.round(H * (0.2 + 0.25 * (i % rows)));
-    ctx.fillRect(
-      Math.floor((a / N) * W),
-      y,
-      Math.max(2, Math.ceil(((b - a + 1) / N) * W)),
-      rowH,
-    );
+    // Un trait par passage masqué : les images où le masque a été retiré restent vides.
+    for (let s = a; s <= b; s++) {
+      if (isOff(t, s)) continue;
+      let e = s;
+      while (e < b && !isOff(t, e + 1)) e++;
+      ctx.fillRect(Math.floor(s / N * W), y, Math.max(2, Math.ceil((e - s + 1) / N * W)), rowH);
+      s = e;
+    }
   });
   ctx.fillStyle = "#e4ff3a";
   for (const m of S.manual)
@@ -1275,23 +1279,20 @@ async function togglePlay() {
 function refreshPanels() {
   const m = S.sel && S.sel.manual;
   const tr = S.sel && S.sel.track;
-  $("maskBar").hidden = !m && !tr;
-  $("mMinus").hidden = !m;
-  $("mPlus").hidden = !m;
-  $("mAll").hidden = !m || isPhoto();
-  $("mAll").classList.toggle("on", !!m && m.t0 <= 0 && m.t1 >= S.duration);
-  $("mDelete").textContent = tr && tr.removed ? "↺" : "×";
-  $("mDelete").title = tr
-    ? tr.removed
-      ? "Remettre ce masque"
-      : "Retirer ce masque"
-    : "Retirer";
-  const removed = S.tracks.filter((t) => t.removed).length;
-  $("restoreAll").hidden = !removed;
-  $("restoreAll").textContent =
-    removed > 1
-      ? `Remettre les ${removed} masques retirés`
-      : "Remettre le masque retiré";
+  $('maskBar').hidden = !m && !tr;
+  $('mMinus').hidden = !m;
+  $('mPlus').hidden = !m;
+  $('mAll').hidden = !m || isPhoto();
+  $('mAll').classList.toggle('on', !!m && m.t0 <= 0 && m.t1 >= S.duration);
+  const j = frameIndex(S.t);
+  const off = tr && isOff(tr, j);
+  const last = tr && tr.off[tr.off.length - 1];
+  const fromHere = tr && tr.off.length && last.at !== j && !isPhoto() ? " à partir d'ici" : '';
+  $('mDelete').textContent = off ? '↺' : '×';
+  $('mDelete').title = tr ? (off ? 'Remettre ce masque' : 'Retirer ce masque') + fromHere : 'Retirer';
+  const removed = S.tracks.filter(isRemoved).length;
+  $('restoreAll').hidden = !removed;
+  $('restoreAll').textContent = removed > 1 ? `Remettre les ${removed} masques retirés` : 'Remettre le masque retiré';
   placeMaskBar();
 }
 
@@ -1428,18 +1429,13 @@ $("mAll").onclick = () => {
   refreshPanels();
   renderReview();
 };
-$("mDelete").onclick = () => {
-  if (S.sel && S.sel.track) {
-    S.sel.track.removed = !S.sel.track.removed;
-    refreshPanels();
-    renderReview();
-    return;
-  }
+$('mDelete').onclick = () => {
+  if (S.sel && S.sel.track) { toggleTrack(S.sel.track, frameIndex(S.t)); refreshPanels(); renderReview(); return; }
   S.manual = S.manual.filter((x) => x !== selectedManual());
   deselect();
 };
-$("restoreAll").onclick = () => {
-  for (const t of S.tracks) t.removed = false;
+$('restoreAll').onclick = () => {
+  for (const t of S.tracks) t.off = [];
   refreshPanels();
   renderReview();
 };
@@ -2171,6 +2167,22 @@ $("file").addEventListener("change", (e) => {
   if (f) loadFile(f);
 });
 
+// iPhone : la photothèque ne transmet pas toujours la vidéo choisie (restée dans iCloud, ou qu'elle n'arrive pas à
+// préparer) et se ferme sans rien rendre. « Choisir le fichier » passe : si rien n'arrive, on le dit.
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) {
+  let waiting = null;
+  const nothingCame = () => {
+    if (waiting) return;
+    waiting = setTimeout(() => {
+      waiting = null;
+      if (!S.file && !$('s-home').hidden) fail($('homeError'), "Aucune vidéo reçue : la photothèque de l'iPhone n'en transmet pas toujours. Enregistre la vidéo dans Fichiers (Partager, puis « Enregistrer dans Fichiers »), puis touche le carré et « Choisir le fichier ».");
+    }, 4000);
+  };
+  $('file').addEventListener('cancel', nothingCame);
+  $('file').addEventListener('click', () => addEventListener('focus', nothingCame, { once: true }));
+  $('file').addEventListener('change', () => { clearTimeout(waiting); waiting = null; });
+}
+
 /* ---------- Installer l'app ---------- */
 
 // Le site s'installe déjà comme une app (manifest.webmanifest, sw.js) : ce bouton le fait savoir.
@@ -2237,29 +2249,25 @@ $("file").addEventListener("change", (e) => {
 }
 
 // Accès aux données pour les tests : en local, ou avec ?debug (version de test de l'app Android).
-if (DEBUG)
-  window.skred = {
-    S,
-    frameIndex,
-    retrack: (o) => {
-      Object.assign(TRACK, o);
-      buildTracks(S.raw);
-    },
-    // Refait le tri des détections gardées de l'analyse (S.found) avec d'autres réglages, puis le suivi.
-    rejudge: (o, t = {}) => {
-      Object.assign(JUDGE, o);
-      Object.assign(TRACK, t);
-      const results = [];
-      for (const { found, i, j } of S.found) {
-        const boxes = judge(found.map((b) => ({ ...b })));
-        for (const b of boxes) b.at = i;
-        for (let k = i; k <= j; k++) if (!results[k]) results[k] = boxes;
-      }
-      for (let k = 0; k < results.length; k++) results[k] ||= [];
-      S.raw = results;
-      buildTracks(results);
-    },
-  };
+if (DEBUG) window.skred = {
+  S, frameIndex,
+  retrack: (o) => { Object.assign(TRACK, o); buildTracks(S.raw); },
+  // Refait le tri des détections gardées de l'analyse (S.found) avec d'autres réglages, puis le suivi.
+  rejudge: (o, t = {}, r = {}) => {
+    Object.assign(JUDGE, o);
+    Object.assign(RULE, r);
+    Object.assign(TRACK, t);
+    const results = [];
+    for (const { found, i, j } of S.found) {
+      const boxes = judge(found.map((b) => ({ ...b })));
+      for (const b of boxes) b.at = i;
+      for (let k = i; k <= j; k++) if (!results[k]) results[k] = boxes;
+    }
+    for (let k = 0; k < results.length; k++) results[k] ||= [];
+    S.raw = results;
+    buildTracks(results);
+  },
+};
 
 $("version").textContent = "version " + VERSION;
 

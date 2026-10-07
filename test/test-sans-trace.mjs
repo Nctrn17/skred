@@ -2,7 +2,7 @@
 // Deux vidéos identiques au pixel près sauf l'intérieur des visages (make-faces-pair.py). On analyse la première,
 // puis on applique exactement les mêmes masques à la seconde, et on exporte les deux : les fichiers produits doivent
 // être identiques octet pour octet. S'ils le sont, le résultat ne dépend pas du visage, donc rien ne permet de le retrouver.
-// Usage : python test/make-faces-pair.py (une fois), node dev-server.mjs (dans un autre terminal), puis node test/test-sans-trace.mjs
+// Usage : python test/make-faces-pair.py (une fois), node outils/dev-server.mjs (dans un autre terminal), puis node test/test-sans-trace.mjs
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';

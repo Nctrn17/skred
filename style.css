@@ -159,11 +159,9 @@ button { font: inherit; color: inherit; }
   object-fit: contain;
   display: block;
 }
+/* Au-dessus de la vidéo, jamais posé dessus : il cacherait des visages en haut de l'image. */
 .banner {
-  position: absolute;
-  left: 16px;
-  top: 16px;
-  right: 16px;
+  flex: none;
   margin: 0;
   padding: 10px 12px;
   background: var(--paper);
@@ -314,7 +312,7 @@ button { font: inherit; color: inherit; }
   #s-home .pickText { font-size: 24px; line-height: 1.25; }
   .foot { font-size: 12px; }
   .middle:not(#s-home .middle) { align-items: flex-start; }
-  .banner { right: auto; left: 20px; top: 20px; font-size: 15px; padding: 10px 14px; }
+  .banner { font-size: 15px; padding: 10px 24px; }
   .deck { flex-direction: row; align-items: center; gap: 10px; padding: 16px 24px 20px; }
   .timeline { flex: 2; min-width: 240px; height: 52px; order: 1; }
   .row { order: 2; }

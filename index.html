@@ -74,15 +74,17 @@
     </div>
   </div>
 
-  <!-- Analyse -->
-  <section id="s-scan" class="screen paper" hidden>
-    <header class="top"><span class="brand">skred</span></header>
-    <div class="middle">
-      <span class="big" id="scanText">0%</span>
-      <div class="square frame" id="scanFrame">
-        <span class="tag">Image en cours</span>
-        <span class="fill up" id="scanBar"></span>
-      </div>
+<!-- Vérification -->
+<section id="s-review" class="screen ink" hidden>
+  <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
+  <div class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <button class="link small" id="restoreAll" type="button" hidden></button>
+    <div class="maskBar" id="maskBar" hidden>
+      <button type="button" id="mMinus" title="Plus petit">−</button>
+      <button type="button" id="mPlus" title="Plus grand">+</button>
+      <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
+      <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
     </div>
     <button class="link" id="scanCancel" type="button">Annuler</button>
   </section>

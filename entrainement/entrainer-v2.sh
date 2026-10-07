@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deuxième entraînement : comme test/entrainer-nuit.sh, mais les annotations de WIDER FACE sont d'abord complétées
-# des visages oubliés par les annotateurs (test/distiller-wider.py, détecteur SCRFD-10G), puis deux modèles sont
+# Deuxième entraînement : comme entrainement/entrainer-nuit.sh, mais les annotations de WIDER FACE sont d'abord complétées
+# des visages oubliés par les annotateurs (entrainement/distiller-wider.py, détecteur SCRFD-10G), puis deux modèles sont
 # entraînés : YuNet_n (même taille que celui du site) et YuNet_s (un peu plus gros).
-# Serveur : /root/yt = libfacedetection.train + test/init-weights.patch ; /root/pack = sortie de test/prepare-darkface.py,
+# Serveur : /root/yt = libfacedetection.train + entrainement/init-weights.patch ; /root/pack = sortie de entrainement/prepare-darkface.py,
 # det_10g.onnx et distiller-wider.py ; /root/data/imgs = photos d'entraînement de WIDER FACE.
 set -e
 ulimit -n 65536   # sinon les fils de chargement des photos manquent de descripteurs (« received 0 items of ancdata »)
