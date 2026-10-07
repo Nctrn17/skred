@@ -15,6 +15,7 @@ import onnxruntime as ort
 
 SRC, MODEL, IMGS, DST = sys.argv[1:5]
 PAS, SURE, DOUTE, MIN_PX, MAX_IMG = 2.0, 0.6, 0.25, 8, 300
+DOUTE = float(os.environ.get('DOUTE', DOUTE))   # plus bas : plus de visages incertains effacés plutôt que comptés comme fond
 ort.preload_dlls()
 det = ort.InferenceSession(MODEL, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
 name = det.get_inputs()[0].name
