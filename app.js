@@ -50,7 +50,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-07.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-07.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -1422,6 +1422,22 @@ $('file').addEventListener('change', (e) => {
   const f = e.target.files && e.target.files[0];
   if (f) loadFile(f);
 });
+
+// iPhone : la photothèque ne transmet pas toujours la vidéo choisie (restée dans iCloud, ou qu'elle n'arrive pas à
+// préparer) et se ferme sans rien rendre. « Choisir le fichier » passe : si rien n'arrive, on le dit.
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) {
+  let waiting = null;
+  const nothingCame = () => {
+    if (waiting) return;
+    waiting = setTimeout(() => {
+      waiting = null;
+      if (!S.file && !$('s-home').hidden) fail($('homeError'), "Aucune vidéo reçue : la photothèque de l'iPhone n'en transmet pas toujours. Enregistre la vidéo dans Fichiers (Partager, puis « Enregistrer dans Fichiers »), puis touche le carré et « Choisir le fichier ».");
+    }, 4000);
+  };
+  $('file').addEventListener('cancel', nothingCame);
+  $('file').addEventListener('click', () => addEventListener('focus', nothingCame, { once: true }));
+  $('file').addEventListener('change', () => { clearTimeout(waiting); waiting = null; });
+}
 
 /* ---------- Installer l'app ---------- */
 
