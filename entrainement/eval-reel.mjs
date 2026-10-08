@@ -31,8 +31,9 @@ const chrome = spawn(CHROME, [
 let page;
 for (let i = 0; i < 50 && !page; i++) {
   await sleep(200);
-  try { page = (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find((t) => t.type === 'page'); } catch { /* pas encore prêt */ }
+  try { page = (await (await fetch(`http://localhost:${PORT}/json`)).json()).find((t) => t.type === 'page'); } catch { /* pas encore prêt */ }
 }
+if (!page) { console.error('Chrome injoignable sur le port ' + PORT); chrome.kill(); process.exit(1); }
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => { ws.onopen = r; });
 let nextId = 1;
