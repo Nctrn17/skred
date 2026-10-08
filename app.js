@@ -50,7 +50,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-07.2';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-08.1';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -533,9 +533,12 @@ async function scan() {
   };
   // Analyse une image (déjà dessinée sur `canvas`) et range le résultat pour les images i à j.
   const submit = async (canvas, i, j) => {
+    // Copie immédiate : en lecture continue, la toile repasse dans la réserve et peut recevoir une image plus récente
+    // pendant qu'on attend un fil libre. Le résultat aurait alors été rangé à l'instant de l'ancienne image.
+    const shot = createImageBitmap(canvas);
     const runner = await acquire();
-    if (job.cancelled || error) { release(runner); return; }
-    const bitmap = await createImageBitmap(canvas);
+    if (job.cancelled || error) { release(runner); (await shot).close(); return; }
+    const bitmap = await shot;
     const t0 = performance.now();
     const always = isPhoto() || sent++ % LOW_EVERY === 0;   // compté par image envoyée, pas par numéro d'image
     tasks.push(runner.detect(bitmap, side, always).then((found) => {
@@ -588,7 +591,9 @@ async function scan() {
 async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   if (!hasRVFC || document.hidden) return;
   const n = S.runners.length;
-  const ring = Array.from({ length: 2 * n + 3 }, () => {
+  // Trois toiles suffisent : celle de l'image en attente (prev), celle qu'on dessine, et une de marge. L'envoi
+  // à l'analyse en fait une copie tout de suite (submit), la toile est donc libre dès l'image suivante.
+  const ring = Array.from({ length: 3 }, () => {
     const c = document.createElement('canvas');
     c.width = S.W;
     c.height = S.H;
@@ -617,7 +622,9 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
     lastSeen = performance.now();
     const t = meta.mediaTime - S.start;
     if (t > lastTime) {
-      const skipped = lastPresented >= 0 && meta.presentedFrames - lastPresented > 1;
+      // Image sautée : le navigateur le dit (presentedFrames), ou pas (images abandonnées avant d'être présentées,
+      // fréquent au démarrage de la lecture) : on le voit alors à l'écart entre deux instants.
+      const skipped = lastPresented >= 0 && (meta.presentedFrames - lastPresented > 1 || (prev && t - prev.t > frameDur * 1.5));
       flush(skipped ? Math.min(t, (prev ? prev.t : t) + frameDur * 1.2) : t);
       // La vitesse de lecture suit le rythme de l'analyse : on ralentit quand la file s'allonge,
       // on accélère quand elle est vide. La pause n'est qu'un dernier recours.
@@ -663,8 +670,12 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
 
 /* ---------- Suivi : une seule case par visage, d'une image à l'autre ---------- */
 
+// Plus une marge fixe : sur un tout petit visage (une vingtaine de pixels), le cadre du détecteur tremble de quelques
+// pixels et l'encodage de la vidéo produite floute le bord du carré noir. 2 pixels de chaque côté ne suffisaient pas
+// (test5, vidéo de nuit : bord du petit visage visible) ; 4 à 720 pixels de petit côté, 6 à 1080.
 function grow(b) {
-  const w = b.w * GROW + 4, h = b.h * GROW + 4;
+  const edge = Math.max(4, Math.min(S.W, S.H) / 90);
+  const w = b.w * GROW + edge, h = b.h * GROW + edge;
   return { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h };
 }
 
