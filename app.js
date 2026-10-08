@@ -160,7 +160,15 @@ async function androidHello() {
   androidCaps = await androidAsk({ t: 'hello' }, ['hello']);
 }
 // Remet un fichier à l'app, par morceaux de 1 Mo. Réponse : 'saved', 'shared' ou 'error'.
-async function androidSend(file, action) {
+// Un transfert à la fois : l'app n'a qu'un fichier de réception, et l'enregistrement démarre tout seul
+// à la fin de l'export, pendant qu'on peut déjà toucher « Partager ».
+let androidQueue = Promise.resolve();
+function androidSend(file, action) {
+  const run = androidQueue.then(() => androidSendNow(file, action));
+  androidQueue = run.catch(() => {});
+  return run;
+}
+async function androidSendNow(file, action) {
   ANDROID.postMessage(JSON.stringify({ t: 'begin', name: file.name, type: file.type, action }));
   const CHUNK = 1 << 20;
   for (let o = 0; o < file.size; o += CHUNK) {
@@ -193,13 +201,24 @@ function startWorker() {
     let w;
     try { w = new Worker('detect-worker.js', { type: 'module' }); } catch { resolve(null); return; }
     const pending = new Map();
-    let nextId = 1;
+    let nextId = 1, broken = null;
     const giveUp = setTimeout(() => { w.terminate(); resolve(null); }, 20000);
+    // Fil tombé en panne une fois lancé : les analyses en attente échouent tout de suite (l'analyse s'arrête
+    // avec un message) au lieu de rester suspendues, et celles qui suivent aussi.
+    const breakDown = (why) => {
+      if (!broken) broken = new Error(why);
+      w.terminate();
+      for (const p of pending.values()) { clearTimeout(p.timer); p.ko(broken); }
+      pending.clear();
+    };
     const runner = {
       stop: () => w.terminate(),
       detect: (bitmap, maxSide, always) => new Promise((ok, ko) => {
+        if (broken) { bitmap.close(); ko(broken); return; }
         const id = nextId++;
-        pending.set(id, { ok, ko });
+        // Un fil tué sans prévenir (mémoire du téléphone saturée) ne répond plus jamais.
+        const timer = setTimeout(() => breakDown('fil muet'), 60000);
+        pending.set(id, { ok, ko, timer });
         w.postMessage({ type: 'detect', id, bitmap, w: bitmap.width, h: bitmap.height, maxSide, minScore: KEEP_SCORE, always, rule: RULE }, [bitmap]);
       }),
     };
@@ -207,12 +226,13 @@ function startWorker() {
       const m = e.data;
       if (m.type === 'ready') { clearTimeout(giveUp); resolve(runner); return; }
       const p = pending.get(m.id);
-      if (m.type === 'error' && !p) { if (window.diag) window.diag('worker erreur : ' + m.message); clearTimeout(giveUp); w.terminate(); resolve(null); return; }
+      if (m.type === 'error' && !p) { if (window.diag) window.diag('worker erreur : ' + m.message); clearTimeout(giveUp); resolve(null); breakDown('fil en panne'); return; }
       if (!p) return;
       pending.delete(m.id);
+      clearTimeout(p.timer);
       if (m.type === 'done') p.ok(m.boxes); else p.ko(new Error(m.message));
     };
-    w.onerror = (e) => { if (window.diag) window.diag(`worker onerror : ${e.message} ${e.filename}:${e.lineno}`); clearTimeout(giveUp); resolve(null); };
+    w.onerror = (e) => { if (window.diag) window.diag(`worker onerror : ${e.message} ${e.filename}:${e.lineno}`); clearTimeout(giveUp); resolve(null); breakDown('fil en panne'); };
     w.postMessage({ type: 'init' });
   });
 }
@@ -337,20 +357,24 @@ function once(target, ok, bad, ms) {
 }
 
 // Place la vidéo à l'instant t et attend que l'image soit vraiment disponible.
-function seekTo(t) {
+// Renvoie false si le navigateur n'a pas confirmé le déplacement dans le délai : l'image affichée
+// est alors peut-être encore l'ancienne, et ne doit servir ni à l'analyse ni à l'export.
+function seekTo(t, ms = 3000) {
   return new Promise((resolve) => {
     let seeked = false, framed = false, finished = false;
-    const target = t;
-    const fin = () => { if (!finished) { finished = true; resolve(); } };
-    video.addEventListener('seeked', () => {
+    const fin = (ok) => { if (!finished) { finished = true; video.removeEventListener('seeked', onSeeked); resolve(ok); } };
+    const onSeeked = () => {
       seeked = true;
-      if (framed) fin(); else setTimeout(fin, 15);
-    }, { once: true });
-    if (hasRVFC) video.requestVideoFrameCallback(() => { framed = true; if (seeked) fin(); });
-    setTimeout(fin, 3000);
-    video.currentTime = target + S.start;
+      if (framed) fin(true); else setTimeout(() => fin(true), 15);
+    };
+    video.addEventListener('seeked', onSeeked);
+    if (hasRVFC) video.requestVideoFrameCallback(() => { framed = true; if (seeked) fin(true); });
+    setTimeout(() => fin(false), ms);
+    video.currentTime = t + S.start;
   });
 }
+// Pour l'analyse et l'export : un déplacement lent a droit à un second essai, puis on abandonne.
+const seekSure = async (t) => (await seekTo(t, 10000)) || seekTo(t, 10000);
 
 async function measureFps() {
   if (!hasRVFC) return 30;
@@ -516,7 +540,10 @@ async function scan() {
   // Le reste (tout, si la lecture en continu n'est pas possible) : image par image, en se positionnant sur chacune.
   for (let i = 0; i < total && !job.cancelled && !error; i++) {
     if (results[i]) continue;
-    if (!isPhoto()) { await seekTo(frameTime(i)); S.seekFallbacks++; }
+    if (!isPhoto()) {
+      if (!await seekSure(frameTime(i))) { error = new Error('déplacement impossible à ' + frameTime(i).toFixed(2) + ' s'); break; }
+      S.seekFallbacks++;
+    }
     if (job.cancelled || error) break;
     drawSource(wctx);
     keepForPreview(work);
@@ -597,7 +624,7 @@ async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   const onEnded = () => { ended = true; };
   const onVisibility = () => { if (document.hidden) { paused = true; video.pause(); } else resume(); };
 
-  await seekTo(0);
+  if (!await seekSure(0)) return;   // tout sera repris image par image, avec la même vérification
   video.muted = true;
   setRate(rate);
   video.addEventListener('ended', onEnded);
@@ -1254,7 +1281,15 @@ async function exportVideo() {
     paint(vctx, t, false);
   };
 
-  await seekTo(0);
+  const sought = await seekSure(0);
+  if (job.cancelled || !sought) {
+    // Sans confirmation, l'image affichée n'est peut-être pas la première : ses masques ne lui iraient pas.
+    S.job = null;
+    await keepAwake(false);
+    openReview(0);
+    if (!job.cancelled) fail($('fatal'), "La création de la vidéo a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
+    return;
+  }
   draw(0);
 
   // La vidéo produite est un enregistrement de cette image masquée : l'original n'y entre jamais.

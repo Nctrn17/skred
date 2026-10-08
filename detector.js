@@ -41,15 +41,22 @@ export async function createDetector(base) {
   const session = await ort.InferenceSession.create(base + 'models/yunet.onnx', { executionProviders: ['wasm'] });
 
   // Une toile et un tampon par taille d'image : les deux passes alternent deux tailles, et tout recréer à chaque image
-  // (plusieurs dizaines de Mo) coûtait presque autant que la détection elle-même.
+  // (plusieurs dizaines de Mo) coûtait presque autant que la détection elle-même. On ne garde que les deux
+  // dernières tailles servies : d'un fichier à l'autre, les anciennes partent, sinon la mémoire ne fait que grossir.
   const sizes = new Map();
   const space = (pw, ph) => {
     const key = pw + 'x' + ph;
     let sp = sizes.get(key);
-    if (!sp) {
+    if (sp) sizes.delete(key);
+    else {
       const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(pw, ph) : Object.assign(document.createElement('canvas'), { width: pw, height: ph });
-      sp = { ctx: canvas.getContext('2d', { willReadFrequently: true }), buffer: new Float32Array(3 * pw * ph) };
-      sizes.set(key, sp);
+      sp = { canvas, ctx: canvas.getContext('2d', { willReadFrequently: true }), buffer: new Float32Array(3 * pw * ph) };
+    }
+    sizes.set(key, sp);
+    for (const [k, old] of sizes) {
+      if (sizes.size <= 2) break;
+      old.canvas.width = old.canvas.height = 0;   // rend tout de suite la mémoire de la toile
+      sizes.delete(k);
     }
     return sp;
   };
