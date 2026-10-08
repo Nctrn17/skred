@@ -205,20 +205,35 @@ function startWorker() {
     const giveUp = setTimeout(() => { w.terminate(); resolve(null); }, 20000);
     // Fil tombé en panne une fois lancé : les analyses en attente échouent tout de suite (l'analyse s'arrête
     // avec un message) au lieu de rester suspendues, et celles qui suivent aussi.
+    // Le fil est retiré de la liste ; si c'était le dernier, la recherche reprend dans la page pour le fichier suivant.
     const breakDown = (why) => {
-      if (!broken) broken = new Error(why);
+      if (!broken) {
+        broken = new Error(why);
+        const i = S.runners.indexOf(runner);
+        if (i >= 0 && S.runners.length > 1) S.runners.splice(i, 1);
+        else if (i >= 0) localRunner().then((r) => { const j = S.runners.indexOf(runner); if (j >= 0) S.runners[j] = r; }, () => {});
+      }
       w.terminate();
       for (const p of pending.values()) { clearTimeout(p.timer); p.ko(broken); }
       pending.clear();
     };
+    // Une page restée en arrière-plan est gelée par le téléphone, fil compris : à son retour, le délai serait
+    // déjà dépassé. On ne compte donc que le temps passé à l'écran.
+    let shownAt = performance.now();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) shownAt = performance.now(); });
+    const watch = (id) => setTimeout(() => {
+      const p = pending.get(id);
+      if (!p) return;
+      if (document.hidden || performance.now() - shownAt < 60000) p.timer = watch(id);
+      else breakDown('fil muet');
+    }, 60000);
     const runner = {
       stop: () => w.terminate(),
       detect: (bitmap, maxSide, always) => new Promise((ok, ko) => {
         if (broken) { bitmap.close(); ko(broken); return; }
         const id = nextId++;
         // Un fil tué sans prévenir (mémoire du téléphone saturée) ne répond plus jamais.
-        const timer = setTimeout(() => breakDown('fil muet'), 60000);
-        pending.set(id, { ok, ko, timer });
+        pending.set(id, { ok, ko, timer: watch(id) });
         w.postMessage({ type: 'detect', id, bitmap, w: bitmap.width, h: bitmap.height, maxSide, minScore: KEEP_SCORE, always, rule: RULE }, [bitmap]);
       }),
     };
@@ -1284,6 +1299,8 @@ async function exportVideo() {
   const sought = await seekSure(0);
   if (job.cancelled || !sought) {
     // Sans confirmation, l'image affichée n'est peut-être pas la première : ses masques ne lui iraient pas.
+    if (audioDest) S.audioNode.disconnect(audioDest);
+    video.muted = true;
     S.job = null;
     await keepAwake(false);
     openReview(0);
