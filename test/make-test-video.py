@@ -24,6 +24,13 @@ subprocess.run([
     '-map', '[v]', '-map', '2:a', '-t', '5', '-r', '30', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
     '-metadata', 'location=+48.8566+002.3522/', '-metadata', 'make=TestPhone', 'test2.mp4',
 ], check=True)
+# La même à 60 images par seconde, comme beaucoup de téléphones : le visage qui bouge vite y change de place
+# entre deux images analysées, et une analyse rangée au mauvais instant s'y voit tout de suite.
+subprocess.run([
+    'ffmpeg', '-y', '-v', 'error', '-loop', '1', '-i', 'bg.png', '-loop', '1', '-i', 'astro.png',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=5', '-filter_complex', graph.replace('fps=30', 'fps=60'),
+    '-map', '[v]', '-map', '2:a', '-t', '5', '-r', '60', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', 'test4.mp4',
+], check=True)
 # La même en 1080 x 1920, la taille d'une vidéo de téléphone.
 subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', 'scale=1080:1920',
                 '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', 'test3.mp4'], check=True)
@@ -39,4 +46,4 @@ subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', "setpts
                 '-c:v', 'libx264', '-crf', '18', '-c:a', 'copy', 'test7.mp4'], check=True)
 subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', 'test2.mp4', '-vf', 'fps=24', '-c:v', 'libx264', '-bf', '0', '-crf', '18',
                 '-c:a', 'copy', 'test8.mp4'], check=True)
-print('test2.mp4, test3.mp4, test5.mp4 à test8.mp4 créés')
+print('test2.mp4 à test8.mp4 créés')
