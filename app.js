@@ -591,7 +591,9 @@ async function scan() {
 async function scanByPlayback(job, total, submit, keepForPreview, failed) {
   if (!hasRVFC || document.hidden) return;
   const n = S.runners.length;
-  const ring = Array.from({ length: 2 * n + 3 }, () => {
+  // Trois toiles suffisent : celle de l'image en attente (prev), celle qu'on dessine, et une de marge. L'envoi
+  // à l'analyse en fait une copie tout de suite (submit), la toile est donc libre dès l'image suivante.
+  const ring = Array.from({ length: 3 }, () => {
     const c = document.createElement('canvas');
     c.width = S.W;
     c.height = S.H;
