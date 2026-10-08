@@ -80,20 +80,43 @@ out.export = await run(`${TRUTH} const S = window.skred.S; const v = document.ge
   await new Promise(r => setTimeout(r, 500));
   const c = document.createElement('canvas'); c.width = S.W; c.height = S.H; const x = c.getContext('2d', { willReadFrequently: true });
   const lit = (X, Y) => { const d = x.getImageData(Math.round(X), Math.round(Y), 1, 1).data; return d[0] + d[1] + d[2] > 40 ? 1 : 0; };
-  // Le fichier produit peut être décalé de quelques images : on teste plusieurs décalages et on garde le meilleur.
-  const offs = []; for (let o = 0; o <= 0.4001; o += 0.02) offs.push(o);
-  // Pour chaque visage : nombre d'images où au moins un des 25 points du visage reste visible.
-  const bad = offs.map(() => [0,0,0,0]); let n = 0; const dur = Number.isFinite(v.duration) ? v.duration : S.duration;
-  if (${known}) for (let t = 0.45; t < dur - 0.3; t += 1 / 30) {
-    await new Promise(r => { v.addEventListener('seeked', r, { once: true }); v.currentTime = t; }); await new Promise(r => setTimeout(r, 25));
+  // L'export peut sauter ou doubler des images (l'export de secours enregistre la lecture en direct) : un décalage
+  // unique ne vaut pas pour tout le fichier. Chaque image exportée est donc comparée à toutes les images d'origine
+  // (sur ses pixels non masqués) pour savoir laquelle elle montre, et les visages sont cherchés à leur place sur celle-là.
+  // Toutes, pas seulement les voisines : près de la fin du fichier, Chrome affiche parfois une image bien plus ancienne.
+  const src = document.createElement('video'); src.muted = true; src.src = URL.createObjectURL(S.file);
+  await new Promise(r => { src.onloadeddata = r; });
+  // Deux images voisines ne diffèrent presque que par le décor, qui glisse d'un pixel par image : la réduction trouve
+  // la bonne zone, puis une bande de décor sans visage (en haut), en pleine résolution, départage les voisines.
+  const SW = Math.round(S.W / 4), SH = Math.round(S.H / 4), BH = Math.round(100 * ${K});
+  const grab = (el) => { const c = document.createElement('canvas'); c.width = S.W; c.height = S.H; const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(el, 0, 0, S.W, S.H); const band = g.getImageData(0, 0, S.W, BH).data; const strip = new Uint8Array(S.W * BH);
+    for (let i = 0; i < strip.length; i++) strip[i] = (band[4 * i] + band[4 * i + 1] + band[4 * i + 2]) / 3;
+    g.drawImage(c, 0, 0, S.W, S.H, 0, 0, SW, SH); const d = g.getImageData(0, 0, SW, SH).data; const small = new Float32Array(SW * SH);
+    for (let i = 0; i < small.length; i++) small[i] = (d[4 * i] + d[4 * i + 1] + d[4 * i + 2]) / 3; return { small, strip }; };
+  const diff = (a, b) => { let sum = 0, cnt = 0; for (let i = 0; i < a.length; i++) if (a[i] > 20) { sum += Math.abs(a[i] - b[i]); cnt++; } return cnt ? sum / cnt : Infinity; };
+  const seek = async (el, t) => { await new Promise(r => { el.addEventListener('seeked', r, { once: true }); el.currentTime = t; }); await new Promise(r => setTimeout(r, 25)); };
+  // Instant de chaque image d'origine, compté depuis sa première image (test6 commence à 1,5 s sur son horloge).
+  const first = S.first || 0, srcTimes = [], srcShots = [];
+  if (${known}) for (let t = first + 0.5 / S.srcFps; t < S.duration; t += 1 / S.srcFps) { await seek(src, t + S.start); srcTimes.push(t - first); srcShots.push(grab(src)); }
+  const bad = [0,0,0,0], gaps = [], faults = []; let n = 0, unmatched = 0; const dur = Number.isFinite(v.duration) ? v.duration : S.duration;
+  if (${known}) for (let t = 0.5 / 30; t < dur; t += 1 / 30) {
+    await seek(v, t);
     x.drawImage(v, 0, 0, S.W, S.H); n++;
-    offs.forEach((o, i) => facePoints(t - o).forEach((pts, k) => { if (pts.some(([X, Y]) => lit(X, Y))) bad[i][k]++; }));
+    const e = grab(v); let j = -1, err = Infinity;
+    srcShots.forEach((sh, k) => { const d = diff(e.small, sh.small); if (d < err) { err = d; j = k; } });
+    if (j < 0) { unmatched++; continue; }
+    let fine = Infinity, jj = j;
+    for (let k = Math.max(0, j - 2); k <= Math.min(srcShots.length - 1, j + 2); k++) { const d = diff(e.strip, srcShots[k].strip); if (d < fine) { fine = d; jj = k; } }
+    j = jj;
+    gaps.push(t - srcTimes[j]);
+    facePoints(srcTimes[j]).forEach((pts, k) => { if (pts.some(([X, Y]) => lit(X, Y))) { bad[k]++; faults.push(t.toFixed(2) + ' s → origine ' + srcTimes[j].toFixed(2) + ' s, visage ' + (k + 1)); } });
   }
-  const total = (b) => b.reduce((p, q) => p + q, 0);
-  const iBest = bad.reduce((bi, b, i) => (total(b) < total(bad[bi]) ? i : bi), 0);
-  const best = bad[iBest];
+  URL.revokeObjectURL(src.src);
+  gaps.sort((p, q) => p - q);
+  const best = bad, decalage = gaps.length ? Math.abs(gaps[gaps.length >> 1]) : 0;
   const txt = await S.resultFile.text();
-  return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, visagesVisibles: best, decalage: +offs[iBest].toFixed(2),
+  return { info: document.getElementById('doneInfo').textContent, erreur: document.getElementById('fatal').textContent, duree: v.duration, imagesControlees: n, imagesNonReconnues: unmatched, visagesVisibles: best, imagesFautives: faults.slice(0, 20), decalage: +decalage.toFixed(2),
     metadonnees: ['Lavf', '48.8566', 'TestPhone', 'Mediabunny'].filter(k => txt.includes(k)), datesDansLeFichier: await (async () => {
       // Date de création écrite dans chaque en-tête du MP4 : doit valoir 0 partout.
       const h = new Uint8Array(await S.resultFile.slice(0, 1 << 20).arrayBuffer()); const found = [];
@@ -125,6 +148,7 @@ chrome.kill();
 const e = out.export, fails = [];
 if (e.erreur) fails.push('erreur affichée : ' + e.erreur);
 if (known && !(e.imagesControlees > 0)) fails.push('aucune image contrôlée');
+if (known && e.imagesNonReconnues) fails.push(e.imagesNonReconnues + " images exportées sans image d'origine correspondante");
 if (known && e.visagesVisibles.some((c) => c > 0)) fails.push('visages visibles (images par visage) : ' + e.visagesVisibles.join(', '));
 if (known && e.decalage > 0.1) fails.push('masques décalés de ' + e.decalage + ' s');
 if (e.metadonnees.length) fails.push('métadonnées restantes : ' + e.metadonnees.join(', '));
