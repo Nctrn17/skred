@@ -14,7 +14,7 @@ const LABEL = process.argv[3] || 'site';
 const REEL = process.env.REEL || 'reel.json';   // autre fichier de référence, par exemple pour les vidéos de jour
 const ONLY_CHECKED = !process.env.TOUT;   // TOUT=1 : compte aussi les images pas encore corrigées (pré-repérage seul)
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = 9336;
+const PORT = +process.env.CDP_PORT || 9336;   // CDP_PORT : autre port, pour mesurer deux choses en même temps
 const SITE = process.env.SITE || 'http://localhost:5173/';
 const here = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
