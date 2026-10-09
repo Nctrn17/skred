@@ -1,0 +1,112 @@
+name: Signaler un bug
+description: Signale un problème avec cette version de skred pour aider ethone à le reproduire.
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ce formulaire concerne le fork [ethoneslop/skred](https://github.com/ethoneslop/skred), maintenu par **ethone**.
+        Décris ce qui ne fonctionne pas et comment retrouver le problème. Les captures et les vidéos sont facultatives.
+
+  - type: textarea
+    id: bug
+    attributes:
+      label: Quel est le bug ?
+      description: Décris ce que tu observes, y compris le message d'erreur s'il y en a un.
+      placeholder: Le masque disparaît quand je passe à l'image suivante après avoir changé sa taille.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Comment reproduire le problème ?
+      description: Indique les étapes dans l'ordre. Si le problème n'arrive pas à chaque fois, précise-le.
+      placeholder: |
+        1. Ouvrir une vidéo.
+        2. Ajouter un masque sur un visage.
+        3. Tirer le coin inférieur droit pour l'agrandir.
+        4. Passer à l'image suivante avec le bouton ›.
+        5. Observer le problème.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Quel résultat attendais-tu ?
+      description: Explique ce qui aurait dû se passer à la place du bug.
+      placeholder: Le masque devrait rester visible pendant toute la durée choisie.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: usage
+    attributes:
+      label: Comment utilises-tu skred ?
+      options:
+        - Dans un navigateur sur téléphone
+        - Dans un navigateur sur ordinateur
+        - Depuis un raccourci installé sur l'écran d'accueil
+        - Dans l'app Android
+        - Autre
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Appareil, système et navigateur
+      description: Précise leurs noms et leurs versions si tu les connais. Sinon, indique ce que tu sais.
+      placeholder: 'Exemple : Windows 11, Firefox 143 ; ou iPhone, iOS, Safari.'
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version de skred
+      description: La version est affichée en bas de l'écran d'accueil. Tu peux aussi indiquer le commit si tu testes le code en local.
+      placeholder: Version affichée ou identifiant du commit, si tu le connais.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: À quelle fréquence le bug apparaît-il ?
+      options:
+        - À chaque tentative
+        - Parfois
+        - Une seule fois pour le moment
+        - Je ne sais pas
+    validations:
+      required: false
+
+  - type: input
+    id: media_details
+    attributes:
+      label: Informations sur le fichier utilisé
+      description: Indique s'il s'agit d'une photo ou d'une vidéo, son format et sa durée. Ajoute la résolution et le nombre d'images par seconde si tu les connais.
+      placeholder: 'Exemple : vidéo MP4 de 12 secondes, 1920 × 1080, 60 images/s.'
+    validations:
+      required: false
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Capture d'écran ou vidéo du problème (facultatif)
+      description: Glisse une capture, une courte vidéo de test ou un lien dans ce champ. Les pièces jointes seront publiées sur GitHub ; utilise un exemple sans données personnelles.
+      placeholder: Tu peux joindre un média pour montrer le problème, ou laisser ce champ vide.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Autres informations utiles (facultatif)
+      description: Réglages du masque, option de son, mode rapide, message d'erreur ou autre détail pouvant aider à reproduire le bug.
+      placeholder: Ajoute ici les détails qui ne rentrent pas dans les champs précédents.
+    validations:
+      required: false
