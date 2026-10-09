@@ -60,19 +60,35 @@ const BANDS = [[0.03, 0.12], [0.12, 0.25], [0.25, 9]];
 // VARIANTES='{"nom": {"judge": {...}, "track": {...}, "rule": {...}}, ...}' : après une seule analyse par extrait, le tri des détections
 // et le suivi sont refaits avec chaque jeu de réglages (window.skred.rejudge) : mêmes détections pour toutes les variantes.
 const VARIANTS = process.env.VARIANTES ? JSON.parse(process.env.VARIANTES) : { [LABEL]: null };
-const acc = Object.fromEntries(Object.keys(VARIANTS).map((v) => [v, { total: BANDS.map(() => 0), missed: BANDS.map(() => 0), area: 0, off: 0, n: 0, perClip: {}, detail: [] }]));
+const acc = Object.fromEntries(Object.keys(VARIANTS).map((v) => [v, {
+  total: BANDS.map(() => 0), missed: BANDS.map(() => 0), area: 0, off: 0, offBruit: 0, offHalo: 0, n: 0, perClip: {}, detail: [],
+  // Relevé par piste (suivi d'un visage) : une piste est « bruit » si, sur les images corrigées où elle apparaît, elle ne
+  // touche jamais un visage (zone du visage agrandie de moitié de chaque côté). « 1 analyse » : visage vu une seule fois.
+  pistes: { total: 0, bruit: 0, bruit1: 0, visage: 0, visage1: 0, nonVues: 0 },
+}]));
 
-// Part de l'image sous un masque, et part masquée loin de tout visage repéré (visage agrandi de moitié de chaque côté).
-function areas(e, masks) {
+// Le masque touche-t-il la zone tolérée autour d'un visage repéré (agrandi de moitié de chaque côté) ?
+const touches = (m, f) => m.x <= f[0] + 1.5 * f[2] && m.x + m.w >= f[0] - f[2] / 2 && m.y <= f[1] + 1.5 * f[3] && m.y + m.h >= f[1] - f[3] / 2;
+
+// Part de l'image sous un masque, part masquée loin de tout visage repéré, et, dans cette dernière : part couverte par les seules
+// pistes de bruit, part sous un masque qui touche un visage sur cette image (halo : agrandissement, réunion de positions),
+// le reste étant une piste de visage qui, sur cette image, ne touche aucun visage (débord avant/après, trou bouché, dérive).
+function areas(e, masks, noise) {
   const G = 120;
-  let a = 0, o = 0;
+  let a = 0, o = 0, ob = 0, oh = 0;
+  const near = masks.map((m) => e.faces.some((f) => touches(m, f)));
   for (let gy = 0; gy < G; gy++) for (let gx = 0; gx < G; gx++) {
     const x = (gx + 0.5) * e.W / G, y = (gy + 0.5) * e.H / G;
-    if (!masks.some((m) => x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h)) continue;
+    const over = [];
+    masks.forEach((m, k) => { if (x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) over.push(k); });
+    if (!over.length) continue;
     a++;
-    if (!e.faces.some((f) => x >= f[0] - f[2] / 2 && x <= f[0] + 1.5 * f[2] && y >= f[1] - f[3] / 2 && y <= f[1] + 1.5 * f[3])) o++;
+    if (e.faces.some((f) => x >= f[0] - f[2] / 2 && x <= f[0] + 1.5 * f[2] && y >= f[1] - f[3] / 2 && y <= f[1] + 1.5 * f[3])) continue;
+    o++;
+    if (over.every((k) => noise.has(masks[k].t))) ob++;
+    else if (over.some((k) => near[k])) oh++;
   }
-  return [a / (G * G), o / (G * G)];
+  return [a / (G * G), o / (G * G), ob / (G * G), oh / (G * G)];
 }
 
 for (const clip of clips) {
@@ -89,13 +105,30 @@ for (const clip of clips) {
     // Chaque variante : { judge: {...}, track: {...} }, appliquée par-dessus les réglages d'origine du site.
     if (params) await run(`window.skred.rejudge(${JSON.stringify({ confirm: 0.3, ...params.judge })}, ${JSON.stringify({ lowGrow: 1.5, hold: 4, unionMax: 4, ...params.track })}, ${JSON.stringify({ small: 0.2, ...params.rule })});`);
     const got = await run(`const S = window.skred.S; const short = Math.min(S.W, S.H);
-      const tracks = S.tracks.map(t => { const d = [...t.dets.values()]; return { n: d.length, w: Math.max(...d.map(x => x.w)) / short, s: Math.max(...d.map(x => x.s)), lo: d.filter(x => x.lo).length, sure: d.filter(x => x.sure).length, weak: d.filter(x => x.weak).length }; });
-      return { tracks, W: S.W, H: S.H, masks: ${JSON.stringify(frames)}.map(i => (S.frames[i] || []).map(({ x, y, w, h }) => ({ x, y, w, h }))) };`);
+      const tracks = S.tracks.map(t => { const d = [...t.dets.values()]; return { id: t.id, n: d.length, an: new Set(d.map(x => x.at)).size, w: Math.max(...d.map(x => x.w)) / short, s: Math.max(...d.map(x => x.s)), lo: d.filter(x => x.lo).length, sure: d.filter(x => x.sure).length, weak: d.filter(x => x.weak).length }; });
+      return { tracks, W: S.W, H: S.H, masks: ${JSON.stringify(frames)}.map(i => (S.frames[i] || []).map(({ x, y, w, h, track }) => ({ x, y, w, h, t: track.id }))) };`);
     const A = acc[name];
     let cm = 0, ct = 0;
-    entries.forEach((e, k) => {
+    const scaled = entries.map((e, k) => {
       const sx = got.W / e.W, sy = got.H / e.H;   // au cas où le site aurait réduit la vidéo
-      const masks = got.masks[k].map((m) => ({ x: m.x / sx, y: m.y / sy, w: m.w / sx, h: m.h / sy }));
+      return got.masks[k].map((m) => ({ x: m.x / sx, y: m.y / sy, w: m.w / sx, h: m.h / sy, t: m.t }));
+    });
+    // Classement des pistes sur les images corrigées de l'extrait : vue au moins une fois, touche un visage au moins une fois.
+    const seen = new Set(), touched = new Set();
+    entries.forEach((e, k) => {
+      for (const m of scaled[k]) { seen.add(m.t); if (e.faces.some((f) => touches(m, f))) touched.add(m.t); }
+    });
+    const noise = new Set([...seen].filter((t) => !touched.has(t)));
+    const P = { total: got.tracks.length, bruit: 0, bruit1: 0, visage: 0, visage1: 0, nonVues: 0 };
+    for (const t of got.tracks) {
+      if (!seen.has(t.id)) P.nonVues++;
+      else if (noise.has(t.id)) { P.bruit++; if (t.an === 1) P.bruit1++; } else { P.visage++; if (t.an === 1) P.visage1++; }
+      t.vue = seen.has(t.id);
+      t.bruit = noise.has(t.id);
+    }
+    for (const key of Object.keys(P)) A.pistes[key] += P[key];
+    entries.forEach((e, k) => {
+      const masks = scaled[k];
       const side = Math.min(e.W, e.H);
       for (const f of e.faces) {
         const band = BANDS.findIndex(([a, b]) => f[2] / side >= a && f[2] / side < b);
@@ -103,12 +136,12 @@ for (const clip of clips) {
         A.total[band]++; ct++;
         if (coverage(f, masks) < 0.7) { A.missed[band]++; cm++; }
       }
-      const [a, o] = areas(e, masks);
-      A.area += a; A.off += o; A.n++;
-      A.detail.push({ image: e.image, masks: masks.map((m) => [m.x, m.y, m.w, m.h].map(Math.round)) });
+      const [a, o, ob, oh] = areas(e, masks, noise);
+      A.area += a; A.off += o; A.offBruit += ob; A.offHalo += oh; A.n++;
+      A.detail.push({ image: e.image, masks: masks.map((m) => [...[m.x, m.y, m.w, m.h].map(Math.round), m.t]) });
     });
-    A.perClip[clip] = { rates: cm, visages: ct, pistes: got.tracks };
-    line += `  ${name} ${cm}/${ct}`;
+    A.perClip[clip] = { rates: cm, visages: ct, pistes: got.tracks, bruit: P.bruit, visage: P.visage };
+    line += `  ${name} ${cm}/${ct} bruit ${P.bruit}/${P.bruit + P.visage}`;
   }
   console.log(line);
 }
@@ -118,7 +151,11 @@ chrome.kill();
 for (const [name, A] of Object.entries(acc)) {
   const res = { label: name, images: A.n, rates: A.missed.reduce((a, b) => a + b), visages: A.total.reduce((a, b) => a + b),
     parTaille: Object.fromEntries(BANDS.map((b, k) => [`${b[0] * 100}-${Math.min(b[1], 1) * 100} %`, `${A.missed[k]}/${A.total[k]}`])),
-    surfaceMasquee: +(100 * A.area / A.n).toFixed(1), surfaceSansVisage: +(100 * A.off / A.n).toFixed(1), perClip: A.perClip };
+    surfaceMasquee: +(100 * A.area / A.n).toFixed(1), surfaceSansVisage: +(100 * A.off / A.n).toFixed(1),
+    // Répartition de la surface sans visage : pistes de bruit seules ; halo d'un masque qui touche un visage sur l'image ;
+    // piste de visage qui ne touche rien sur cette image (débord, trou bouché, dérive).
+    dontBruit: +(100 * A.offBruit / A.n).toFixed(1), dontHalo: +(100 * A.offHalo / A.n).toFixed(1), dontDerive: +(100 * (A.off - A.offBruit - A.offHalo) / A.n).toFixed(1),
+    pistes: A.pistes, perClip: A.perClip };
   writeFileSync(join(DATA, 'reel', `resultat-${name}.json`), JSON.stringify(res, null, 1));
   writeFileSync(join(DATA, 'reel', `masques-${name}.json`), JSON.stringify(A.detail));
   console.log(JSON.stringify({ ...res, perClip: undefined }));
