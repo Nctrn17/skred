@@ -3,7 +3,9 @@
 *[English version](README.en.md)*
 
 Masquer les visages d'une vidéo ou d'une photo avant de la poster, directement dans le navigateur du téléphone.
-Rien n'est envoyé à un serveur : pas de compte, pas de statistiques, pas de fichier tiers chargé depuis un autre site.
+Les vidéos, les photos et les fichiers produits sont traités en local, sur ton appareil. Le service ne les envoie à aucun serveur. Tu choisis ensuite si tu souhaites enregistrer ou partager le résultat. Pas de compte, pas de statistiques, pas de fichier tiers chargé depuis un autre site.
+
+Cette version est maintenue par **ethone** dans le fork [ethoneslop/skred](https://github.com/ethoneslop/skred), à partir du [projet d'origine Nctrn17/skred](https://github.com/Nctrn17/skred). Pour un problème avec cette version, ouvre une [issue sur le fork](https://github.com/ethoneslop/skred/issues).
 
 ## Pourquoi
 
@@ -14,7 +16,7 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 
 1. Tu choisis une vidéo ou une photo.
 2. La vidéo est analysée 30 fois par seconde, et un carré noir (ou un émoji posé sur un carré noir) est placé sur chaque visage, sur toutes les images.
-3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort.
+3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort. Chaque masque a sa ligne dans la timeline : clique sur son trait pour le sélectionner. Avec les flèches ‹ ›, tu peux déplacer les masques image par image. Tire les coins pour choisir librement leur largeur et leur hauteur. Pose deux points clés ◆ à des images différentes pour faire évoluer la position et la taille entre elles. Règle le début et la fin du masque en secondes ou avec « Début ici » et « Fin ici ». Les boutons de zoom agrandissent l'aperçu ; « Déplacer » permet de le faire glisser pour atteindre un petit visage.
 4. Le fichier est entièrement refait : le lieu, la date et le modèle du téléphone du fichier d'origine disparaissent.
 
 ## Ce que l'outil ne fait pas
@@ -39,8 +41,8 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
   skred.fr lui-même ne sert que des fichiers statiques : aucun code côté serveur ne pourrait recevoir une vidéo.
 - **Le test automatique** (voir « Tester ») échoue si une seule requête part après le chargement de la page.
 - **Le code est public.** Les envois réseau se cherchent en quelques secondes : `grep -rn "fetch(" app.js sw.js`.
-- **Le site sert ce code-là.** `bash outils/verifier-site.sh` télécharge chaque fichier de skred.fr et le compare,
-  à l'octet près, au dernier commit du dépôt (voir « Tester »).
+- **Vérifier le code servi.** `outils/verifier-site.sh` compare les fichiers d'un site au dernier commit du dépôt.
+  Pour ce fork, indique l'adresse où ta version est publiée avec `SITE` (voir « Tester »). Par défaut, le script vérifie skred.fr, le site du projet d'origine.
 
 ## Comment c'est fait
 
@@ -70,7 +72,7 @@ Pas besoin de nous croire sur parole : chacun de ces points se vérifie sans rie
 
 ## Mettre en ligne
 
-Adresse : https://skred.fr. Hébergé sur Cloudflare (Workers, fichiers statiques seulement, réglages dans `wrangler.jsonc`).
+Le site du projet d'origine est https://skred.fr. Ce dépôt contient la version modifiée par ethone. La configuration Cloudflare incluse sert des fichiers statiques seulement (`wrangler.jsonc`).
 
 Publier :
 
@@ -110,6 +112,14 @@ node outils/dev-server.mjs
 Puis ouvrir http://localhost:5173.
 
 ## Tester
+
+Les corrections image par image se testent avec Node seul :
+
+```bash
+node test/test-edition.mjs
+```
+
+Pour vérifier l'analyse et le fichier vidéo exporté :
 
 ```bash
 python test/make-test-video.py
@@ -174,7 +184,15 @@ WIDER FACE (validation, de jour) et DARK FACE (de nuit). `entrainement/eval-cent
 
 ## Contribuer
 
-Avant d'ouvrir une PR, lis [CONTRIBUTING.md](CONTRIBUTING.md).
+Avant d'ouvrir une PR sur le fork [ethoneslop/skred](https://github.com/ethoneslop/skred), lis [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Participation d'ethone
+
+**ethone** participe sous pseudonyme, à titre non professionnel. Ses contributions à cette version comprennent le déplacement des masques image par image et par points clés, le redimensionnement libre en carré ou en rectangle avec des poignées, le choix de leur début et de leur fin, la timeline avec une ligne par masque et le zoom de l'aperçu.
+
+ethone est responsable de ses ajouts à ce fork. Il assure leur maintenance et le suivi de la sécurité de cette version du service. Ses modifications doivent être documentées par des commits sur [son fork](https://github.com/ethoneslop/skred).
+
+Pour tout bug ou souci de sécurité concernant cette version, ouvre une [issue sur le fork d'ethone](https://github.com/ethoneslop/skred/issues), et non sur le dépôt d'origine, afin qu'il puisse suivre et traiter le signalement directement. Voir aussi [SECURITY.md](SECURITY.md) et les [mentions légales](mentions.html).
 
 ## Licence
 

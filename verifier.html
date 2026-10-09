@@ -45,11 +45,18 @@
   <section>
     <h2>Si tu sais coder</h2>
     <ul class="facts">
-      <li><b>Code public.</b> Sous licence libre : <a href="https://github.com/Nctrn17/skred">github.com/Nctrn17/skred</a>. Le site sert le même fichier, lisible, sans rien de caché.</li>
+      <li><b>Code public.</b> Cette version, maintenue par ethone, est disponible sous licence libre sur <a href="https://github.com/ethoneslop/skred">github.com/ethoneslop/skred</a>. Elle est basée sur le <a href="https://github.com/Nctrn17/skred">projet d'origine</a>.</li>
       <li><b>Aucune trace du visage.</b> <code>test/test-sans-trace.mjs</code> prend deux vidéos identiques sauf les visages, leur pose les mêmes masques : les fichiers produits sont identiques octet pour octet. Aucun filigrane ne peut permettre de retrouver le visage.</li>
       <li><b>Aucun envoi.</b> La page interdit au navigateur de se connecter à un autre site que skred.fr. L'app Android n'a même pas la permission d'utiliser Internet.</li>
       <li><b>Bibliothèques d'origine.</b> ONNX Runtime et Mediabunny : <code>test/verifier-tiers.sh</code> vérifie qu'ils sont identiques aux versions officielles. Le modèle de détection est YuNet, réentraîné pour mieux voir la nuit : sa recette est publique.</li>
     </ul>
+  </section>
+
+  <section>
+    <h2>Les ajouts d'ethone</h2>
+    <p>ethone participe sous pseudonyme, à titre non professionnel. Il a ajouté le déplacement des masques image par image, les poignées pour les redimensionner librement, le choix du début et de la fin, et la sélection d'un masque depuis la timeline.</p>
+    <p>Il est responsable de ses ajouts, de leur maintenance et du suivi de la sécurité de cette version. Ses modifications doivent être documentées par des commits sur son fork.</p>
+    <p>Pour un problème avec cette version, ouvre une <a href="https://github.com/ethoneslop/skred/issues">issue sur le fork d'ethone</a> afin qu'il puisse le suivre et le traiter directement. Les <a href="mentions.html">mentions légales</a> précisent sa participation et le traitement local des fichiers.</p>
   </section>
 
   <section class="limits">

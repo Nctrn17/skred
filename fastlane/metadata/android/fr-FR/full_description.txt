@@ -14,4 +14,9 @@ L'app n'a aucune permission, pas même l'accès à internet. Pas de compte, pas 
 <b>Ce que skred ne fait pas</b>
 Il ne cache ni les vêtements, ni les tatouages, ni la voix, ni le lieu. Il peut rater un visage : regarde toujours le résultat en entier avant de poster.
 
-Détection des visages : modèle YuNet (OpenCV), exécuté sur le téléphone par ONNX Runtime. Code source sous licence AGPL-3.0. Aussi disponible sans installation sur https://skred.fr.
+<b>Version d'ethone</b>
+Cette version repose sur le projet d'origine skred : https://github.com/Nctrn17/skred. ethone participe sous pseudonyme, à titre non professionnel. Il a ajouté les réglages des masques image par image, leur redimensionnement libre, le choix de leur début et de leur fin, et leur sélection depuis la timeline. Il est responsable de ses ajouts, de leur maintenance et du suivi de la sécurité de cette version. Ses modifications doivent être documentées par des commits sur https://github.com/ethoneslop/skred.
+
+Pour un problème avec cette version, ouvre une issue sur le fork d'ethone : https://github.com/ethoneslop/skred/issues. Utilise ce fork pour permettre à ethone de suivre et de traiter le signalement directement.
+
+Détection des visages : modèle YuNet (OpenCV), exécuté sur le téléphone par ONNX Runtime. Code source sous licence AGPL-3.0. Le site du projet d'origine est https://skred.fr.

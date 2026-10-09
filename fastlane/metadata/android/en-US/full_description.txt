@@ -14,4 +14,9 @@ The app requests no permissions at all, not even internet access. No account, no
 <b>What skred does not do</b>
 It does not hide clothes, tattoos, voices or places. It can miss a face: always watch the whole result before posting.
 
-The interface is in French. Face detection: YuNet model (OpenCV), run on the phone by ONNX Runtime. Source code under AGPL-3.0. Also available without installing at https://skred.fr.
+<b>ethone's version</b>
+This version is based on the original skred project: https://github.com/Nctrn17/skred. ethone contributes under a pseudonym, in a non-professional capacity. Contributions include moving masks frame by frame, resizing them freely, choosing their start and end times, and selecting them from the timeline. ethone is responsible for these additions, their maintenance, and security follow-up for this version. Changes made by ethone must be documented through commits on https://github.com/ethoneslop/skred.
+
+For problems with this version, open an issue on ethone's fork: https://github.com/ethoneslop/skred/issues. Use this fork so ethone can track and handle the report directly.
+
+The interface is in French. Face detection: YuNet model (OpenCV), run on the phone by ONNX Runtime. Source code under AGPL-3.0. The original project's website is https://skred.fr.

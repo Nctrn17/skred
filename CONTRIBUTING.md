@@ -1,5 +1,13 @@
 # Contribuer à skred
 
+Ce document concerne le fork [ethoneslop/skred](https://github.com/ethoneslop/skred), maintenu par **ethone**, à partir du [projet d'origine Nctrn17/skred](https://github.com/Nctrn17/skred).
+
+Pour un bug, une demande de fonctionnalité ou un souci de sécurité concernant cette version, ouvre une [issue sur ce fork](https://github.com/ethoneslop/skred/issues). ethone assure le suivi de ses ajouts et de leur sécurité. Les signalements concernant cette version doivent lui parvenir sur ce fork, et non sur le dépôt d'origine. Voir aussi [SECURITY.md](SECURITY.md).
+
+Dans [la création d'issue](https://github.com/ethoneslop/skred/issues/new/choose), choisis **Signaler un bug** pour décrire le problème, sa reproduction, le résultat attendu et l'appareil utilisé, ou **Proposer une amélioration** pour expliquer un besoin et la solution envisagée. Une capture ou une courte vidéo de test peut être jointe, mais reste facultative.
+
+Les modifications apportées par ethone doivent être documentées par des commits sur ce fork. Les crédits du projet d'origine et des composants tiers doivent être conservés.
+
 Merci de vouloir aider. skred protège des personnes filmées : chaque changement est relu avant d'entrer,
 et certains sont refusés même s'ils partent d'une bonne idée. Ce fichier dit à quoi t'attendre, pour que tu
 ne passes pas des heures sur une PR qui ne pourra pas être acceptée.

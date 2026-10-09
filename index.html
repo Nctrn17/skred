@@ -35,6 +35,7 @@
     <label class="fast"><input type="checkbox" id="fast"> Mode rapide (peut rater les très petits visages)</label>
     <a href="verifier.html">Vérifier skred</a>
     <a href="mentions.html">Mentions légales</a>
+    <a href="https://github.com/ethoneslop/skred">Version maintenue par ethone</a>
     <span id="version"></span>
   </footer>
 </section>
@@ -74,19 +75,47 @@
   <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
   <div class="stage" id="stage">
     <canvas id="view"></canvas>
+    <div class="zoomBar" role="group" aria-label="Zoom de l'aperçu">
+      <button type="button" id="zoomOut" title="Réduire l'aperçu" aria-label="Réduire l'aperçu">−</button>
+      <button type="button" id="zoomReset" title="Revenir à 100 %">100 %</button>
+      <button type="button" id="zoomIn" title="Agrandir l'aperçu" aria-label="Agrandir l'aperçu">+</button>
+      <button type="button" id="panView" title="Déplacer l'aperçu agrandi" aria-pressed="false" hidden>Déplacer</button>
+    </div>
+    <div id="maskHandles" hidden>
+      <button type="button" class="resizeHandle nw" id="resize-nw" aria-label="Redimensionner le coin supérieur gauche"></button>
+      <button type="button" class="resizeHandle n" id="resize-n" aria-label="Redimensionner le bord supérieur"></button>
+      <button type="button" class="resizeHandle ne" id="resize-ne" aria-label="Redimensionner le coin supérieur droit"></button>
+      <button type="button" class="resizeHandle e" id="resize-e" aria-label="Redimensionner le bord droit"></button>
+      <button type="button" class="resizeHandle se" id="resize-se" aria-label="Redimensionner le coin inférieur droit"></button>
+      <button type="button" class="resizeHandle s" id="resize-s" aria-label="Redimensionner le bord inférieur"></button>
+      <button type="button" class="resizeHandle sw" id="resize-sw" aria-label="Redimensionner le coin inférieur gauche"></button>
+      <button type="button" class="resizeHandle w" id="resize-w" aria-label="Redimensionner le bord gauche"></button>
+    </div>
     <button class="link small" id="restoreAll" type="button" hidden></button>
     <div class="maskBar" id="maskBar" hidden>
-      <button type="button" id="mMinus" title="Plus petit">−</button>
-      <button type="button" id="mPlus" title="Plus grand">+</button>
-      <button type="button" id="mAll" title="Sur toute la vidéo" class="videoOnly">∞</button>
-      <button type="button" id="mDelete" title="Retirer" class="sep">×</button>
+      <button type="button" id="mDelete" title="Retirer">×</button>
     </div>
   </div>
   <div class="deck">
-    <div class="timeline videoOnly" id="timeline">
-      <button type="button" id="prev" class="step" title="Image précédente">‹</button>
-      <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo"></div>
-      <button type="button" id="next" class="step" title="Image suivante">›</button>
+    <div class="timelineGroup videoOnly">
+      <div class="timeline" id="timeline">
+        <button type="button" id="prev" class="step" title="Image précédente">‹</button>
+        <div class="track" id="trackScroll"><div class="trackSurface" id="trackSurface"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo" title="Clique sur une ligne pour sélectionner son masque"></div></div>
+        <button type="button" id="next" class="step" title="Image suivante">›</button>
+      </div>
+      <p class="note" id="frameStatus" aria-live="off"></p>
+      <div class="maskTiming" id="maskTiming" role="group" aria-label="Durée du masque sélectionné" hidden>
+        <div class="timingFields">
+          <label>Début (s)<input type="number" id="mStart" min="0" step="any" inputmode="decimal"></label>
+          <label>Fin (s)<input type="number" id="mEnd" min="0" step="any" inputmode="decimal"></label>
+        </div>
+        <div class="timingActions">
+          <button type="button" id="mStartHere">Début ici</button>
+          <button type="button" id="mEndHere" title="Inclure l’image affichée, puis arrêter le masque">Fin ici</button>
+          <button type="button" id="mAll">Toute la vidéo</button>
+          <button type="button" id="mKey" title="Enregistrer la position et la taille sur cette image" hidden>◆ Point clé</button>
+        </div>
+      </div>
     </div>
     <div class="row">
       <button type="button" id="play" class="ctl videoOnly" title="Lecture">▶</button>
