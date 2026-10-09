@@ -14,7 +14,7 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 
 1. Tu choisis une vidéo ou une photo.
 2. La vidéo est analysée 30 fois par seconde, et un carré noir (ou un émoji posé sur un carré noir) est placé sur chaque visage, sur toutes les images.
-3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort.
+3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort. Clique sur un trait de la timeline pour sélectionner son masque. Avec les flèches ‹ ›, tu peux déplacer les masques image par image. Tire les coins pour choisir librement leur largeur et leur hauteur. Règle leur début et leur fin en secondes ou avec « Début ici » et « Fin ici ».
 4. Le fichier est entièrement refait : le lieu, la date et le modèle du téléphone du fichier d'origine disparaissent.
 
 ## Ce que l'outil ne fait pas
@@ -110,6 +110,14 @@ node outils/dev-server.mjs
 Puis ouvrir http://localhost:5173.
 
 ## Tester
+
+Les corrections image par image se testent avec Node seul :
+
+```bash
+node test/test-edition.mjs
+```
+
+Pour vérifier l'analyse et le fichier vidéo exporté :
 
 ```bash
 python test/make-test-video.py

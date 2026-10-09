@@ -16,7 +16,7 @@ can be undone by AI. A solid box cannot: there is no image left underneath.
 
 1. You pick a video or a photo.
 2. The video is analysed 30 times per second, and a black box (or an emoji on a black box) is placed on every face, on every frame.
-3. You check: add a mask where a face was missed, remove one placed by mistake.
+3. You check: add a mask where a face was missed, remove one placed by mistake. Click a line in the timeline to select its mask. Use the ‹ › arrows to move masks frame by frame. Drag their corners to freely adjust width and height. Set their start and end in seconds or with “Début ici” (start here) and “Fin ici” (end here).
 4. The file is fully re-encoded: the location, date and phone model stored in the original file are gone.
 
 ## What it does not do
@@ -109,6 +109,14 @@ node outils/dev-server.mjs
 Then open http://localhost:5173.
 
 ## Testing
+
+Frame by frame corrections can be tested with Node alone:
+
+```bash
+node test/test-edition.mjs
+```
+
+To check analysis and the exported video:
 
 ```bash
 python test/make-test-video.py

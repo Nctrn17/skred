@@ -200,6 +200,53 @@ button { font: inherit; color: inherit; }
 }
 .maskBar button.sep { border-left: 2px solid var(--ink); }
 .maskBar button:active { background: rgba(11, 11, 10, 0.12); }
+#maskHandles { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+.resizeHandle {
+  all: unset;
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  touch-action: none;
+}
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+}
+.resizeHandle.nw, .resizeHandle.se { cursor: nwse-resize; }
+.resizeHandle.ne, .resizeHandle.sw { cursor: nesw-resize; }
+.resizeHandle.n, .resizeHandle.s { cursor: ns-resize; }
+.resizeHandle.e, .resizeHandle.w { cursor: ew-resize; }
+.resizeHandle:focus-visible::after { outline: 2px solid var(--paper); outline-offset: 2px; }
+.maskTiming { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.timingFields { display: flex; gap: 8px; }
+.timingFields label { flex: 1; min-width: 0; font: 500 11px/1.4 var(--mono); }
+.timingFields input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--well);
+  color: var(--paper);
+  border: 1px solid var(--line);
+  font: 500 14px/1.4 var(--mono);
+}
+.timingActions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.timingActions button {
+  padding: 8px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  color: var(--paper);
+  cursor: pointer;
+  font: 600 11px/1.4 var(--mono);
+}
+.timingActions button.on { border-color: var(--yellow); color: var(--yellow); }
+.timingFields input:focus-visible, .timingActions button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
 
 .deck {
   padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
@@ -207,6 +254,8 @@ button { font: inherit; color: inherit; }
   flex-direction: column;
   gap: 14px;
 }
+.timelineGroup { min-width: 0; }
+.timelineGroup .note { margin: 6px 0 0; }
 .timeline { display: flex; gap: 6px; align-items: stretch; height: 36px; }
 .step {
   all: unset;
@@ -313,7 +362,8 @@ button { font: inherit; color: inherit; }
   .middle:not(#s-home .middle) { align-items: flex-start; }
   .banner { font-size: 15px; padding: 10px 24px; }
   .deck { flex-direction: row; align-items: center; gap: 10px; padding: 16px 24px 20px; }
-  .timeline { flex: 2; min-width: 240px; height: 52px; order: 1; }
+  .timelineGroup { flex: 2; min-width: 240px; order: 1; }
+  .timeline { height: 52px; }
   .row { order: 2; }
   .ctl { width: 52px; height: 52px; }
   .go { flex: none; height: 52px; padding: 0 32px; }
