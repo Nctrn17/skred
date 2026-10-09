@@ -16,7 +16,7 @@ peuvent être défaits par une IA. Un carré plein, non : il n'y a plus d'image 
 
 1. Tu choisis une vidéo ou une photo.
 2. La vidéo est analysée 30 fois par seconde, et un carré noir (ou un émoji posé sur un carré noir) est placé sur chaque visage, sur toutes les images.
-3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort. Clique sur un trait de la timeline pour sélectionner son masque. Avec les flèches ‹ ›, tu peux déplacer les masques image par image. Tire les coins pour choisir librement leur largeur et leur hauteur. Règle leur début et leur fin en secondes ou avec « Début ici » et « Fin ici ».
+3. Tu vérifies : tu ajoutes un masque là où un visage a été raté, tu retires un masque posé à tort. Chaque masque a sa ligne dans la timeline : clique sur son trait pour le sélectionner. Avec les flèches ‹ ›, tu peux déplacer les masques image par image. Tire les coins pour choisir librement leur largeur et leur hauteur. Pose deux points clés ◆ à des images différentes pour faire évoluer la position et la taille entre elles. Règle le début et la fin du masque en secondes ou avec « Début ici » et « Fin ici ». Les boutons de zoom agrandissent l'aperçu ; « Déplacer » permet de le faire glisser pour atteindre un petit visage.
 4. Le fichier est entièrement refait : le lieu, la date et le modèle du téléphone du fichier d'origine disparaissent.
 
 ## Ce que l'outil ne fait pas
@@ -188,7 +188,7 @@ Avant d'ouvrir une PR sur le fork [ethoneslop/skred](https://github.com/ethonesl
 
 ## Participation d'ethone
 
-**ethone** participe sous pseudonyme, à titre non professionnel. Ses contributions à cette version comprennent le déplacement des masques image par image, le redimensionnement libre en carré ou en rectangle avec des poignées, le choix de leur début et de leur fin, et leur sélection depuis la timeline.
+**ethone** participe sous pseudonyme, à titre non professionnel. Ses contributions à cette version comprennent le déplacement des masques image par image et par points clés, le redimensionnement libre en carré ou en rectangle avec des poignées, le choix de leur début et de leur fin, la timeline avec une ligne par masque et le zoom de l'aperçu.
 
 ethone est responsable de ses ajouts à ce fork. Il assure leur maintenance et le suivi de la sécurité de cette version du service. Ses modifications doivent être documentées par des commits sur [son fork](https://github.com/ethoneslop/skred).
 

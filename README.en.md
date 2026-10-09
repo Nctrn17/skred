@@ -18,7 +18,7 @@ can be undone by AI. A solid box cannot: there is no image left underneath.
 
 1. You pick a video or a photo.
 2. The video is analysed 30 times per second, and a black box (or an emoji on a black box) is placed on every face, on every frame.
-3. You check: add a mask where a face was missed, remove one placed by mistake. Click a line in the timeline to select its mask. Use the ‹ › arrows to move masks frame by frame. Drag their corners to freely adjust width and height. Set their start and end in seconds or with “Début ici” (start here) and “Fin ici” (end here).
+3. You check: add a mask where a face was missed, remove one placed by mistake. Each mask has its own timeline row; click its line to select it. Use the ‹ › arrows to move masks frame by frame. Drag their corners to freely adjust width and height. Add two ◆ keyframes at different frames to change position and size between them. Set mask start and end in seconds or with “Début ici” (start here) and “Fin ici” (end here). The zoom buttons enlarge the preview; “Déplacer” lets you drag it to reach a small face.
 4. The file is fully re-encoded: the location, date and phone model stored in the original file are gone.
 
 ## What it does not do
@@ -187,7 +187,7 @@ Before opening a PR on the [ethoneslop/skred fork](https://github.com/ethoneslop
 
 ## Contributions by ethone
 
-**ethone** contributes under a pseudonym, in a non-professional capacity. Contributions to this version include moving masks frame by frame, resizing them freely as squares or rectangles using handles, choosing their start and end times, and selecting them from the timeline.
+**ethone** contributes under a pseudonym, in a non-professional capacity. Contributions to this version include moving masks frame by frame and with keyframes, freely resizing them as squares or rectangles using handles, choosing their start and end times, a separate timeline row for each mask, and preview zoom.
 
 ethone is responsible for the features and changes added to this fork, their maintenance, and security follow-up for this version of the service. Changes made by ethone must be documented through commits on [this fork](https://github.com/ethoneslop/skred).
 

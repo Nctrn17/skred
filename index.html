@@ -75,6 +75,12 @@
   <p class="banner" id="hint">Touche un visage pour le masquer ou le démasquer.</p>
   <div class="stage" id="stage">
     <canvas id="view"></canvas>
+    <div class="zoomBar" role="group" aria-label="Zoom de l'aperçu">
+      <button type="button" id="zoomOut" title="Réduire l'aperçu" aria-label="Réduire l'aperçu">−</button>
+      <button type="button" id="zoomReset" title="Revenir à 100 %">100 %</button>
+      <button type="button" id="zoomIn" title="Agrandir l'aperçu" aria-label="Agrandir l'aperçu">+</button>
+      <button type="button" id="panView" title="Déplacer l'aperçu agrandi" aria-pressed="false" hidden>Déplacer</button>
+    </div>
     <div id="maskHandles" hidden>
       <button type="button" class="resizeHandle nw" id="resize-nw" aria-label="Redimensionner le coin supérieur gauche"></button>
       <button type="button" class="resizeHandle n" id="resize-n" aria-label="Redimensionner le bord supérieur"></button>
@@ -94,7 +100,7 @@
     <div class="timelineGroup videoOnly">
       <div class="timeline" id="timeline">
         <button type="button" id="prev" class="step" title="Image précédente">‹</button>
-        <div class="track"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo" title="Clique sur un trait pour sélectionner son masque"></div>
+        <div class="track" id="trackScroll"><div class="trackSurface" id="trackSurface"><canvas id="tracks"></canvas><input type="range" id="time" min="0" max="1" step="0.01" value="0" aria-label="Position dans la vidéo" title="Clique sur une ligne pour sélectionner son masque"></div></div>
         <button type="button" id="next" class="step" title="Image suivante">›</button>
       </div>
       <p class="note" id="frameStatus" aria-live="off"></p>
@@ -107,6 +113,7 @@
           <button type="button" id="mStartHere">Début ici</button>
           <button type="button" id="mEndHere" title="Inclure l’image affichée, puis arrêter le masque">Fin ici</button>
           <button type="button" id="mAll">Toute la vidéo</button>
+          <button type="button" id="mKey" title="Enregistrer la position et la taille sur cette image" hidden>◆ Point clé</button>
         </div>
       </div>
     </div>

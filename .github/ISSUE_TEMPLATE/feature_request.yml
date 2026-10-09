@@ -1,0 +1,51 @@
+name: Proposer une amélioration
+description: Suggère une fonctionnalité ou un changement pour cette version de skred.
+title: '[Idée] '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cette demande concerne le fork [ethoneslop/skred](https://github.com/ethoneslop/skred), maintenu par **ethone**. Explique d'abord le besoin : cela aide à choisir une solution utile et compatible avec la confidentialité de skred.
+
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Quel problème veux-tu résoudre ?
+      description: Décris la situation actuelle et ce qui te gêne.
+      placeholder: Quand plusieurs visages se croisent, je ne sais plus quel masque correspond à chacun.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposition
+    attributes:
+      label: Quel comportement voudrais-tu ?
+      description: Décris ce que tu aimerais pouvoir faire et le résultat attendu.
+      placeholder: Je voudrais pouvoir donner un nom court à chaque masque dans la timeline.
+    validations:
+      required: true
+
+  - type: textarea
+    id: exemple
+    attributes:
+      label: Exemple d'utilisation
+      description: Donne un cas concret, si possible avec les étapes que tu suivrais.
+    validations:
+      required: false
+
+  - type: textarea
+    id: medias
+    attributes:
+      label: Capture, croquis ou courte vidéo (facultatif)
+      description: Glisse un média ici si cela aide à comprendre la proposition. Évite les images de personnes identifiables sans leur accord.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Autres idées ou contraintes
+      description: Indique les solutions déjà essayées ou ce que la proposition doit préserver.
+    validations:
+      required: false

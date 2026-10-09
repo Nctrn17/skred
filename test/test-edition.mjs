@@ -6,7 +6,8 @@ import vm from 'node:vm';
 
 const elements = new Map();
 const ctx = {
-  rects: [], clearRect() {}, strokeRect() {}, setLineDash() {},
+  rects: [], clearRect() {}, strokeRect() {}, setLineDash() {}, fillText() {},
+  beginPath() {}, moveTo() {}, lineTo() {}, fill() {},
   fillRect(...r) { this.rects.push(r); },
 };
 const element = (id) => {
@@ -17,6 +18,7 @@ const element = (id) => {
     getBoundingClientRect() { return { left: 0, top: 0, width: 1000, height: 1000 }; },
     getContext() { return ctx; },
     focus() {},
+    setAttribute(name, value) { this[name] = value; },
     setPointerCapture(id) { this.captured = id; },
     hasPointerCapture(id) { return this.captured === id; },
     releasePointerCapture() { this.captured = null; },
@@ -38,7 +40,8 @@ const sandbox = vm.createContext({
 function $(id) { return element(id); }
 vm.runInContext(`
   const S = { kind: 'video', W: 1000, H: 1000, fps: 30, duration: 1, t: 0,
-    frames: Array.from({ length: 30 }, () => []), tracks: [], manual: [], nextId: 1, style: 'noir', sel: null };
+    frames: Array.from({ length: 30 }, () => []), tracks: [], manual: [], nextId: 1, style: 'noir', sel: null,
+    zoom: 1, panX: 0, panY: 0, panMode: false };
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const isPhoto = () => S.kind === 'photo';
   const view = $('view'), vctx = view.getContext('2d');
@@ -289,9 +292,11 @@ run(`S.kind = 'video'; S.W = S.H = 1000; S.duration = 1; S.fps = 30; S.t = 0; S.
   S.tracks = [timelineTrack];
   S.frames = Array.from({ length: 30 }, (_, j) => j >= 6 && j < 18 ? [{ x: 200, y: 200, w: 100, h: 100, track: timelineTrack }] : []);
   S.manual = [{ cx: 0.7, cy: 0.7, w: 0.1, h: 0.1, t0: 0.3, t1: 0.8 }];`);
-element('tracks').getBoundingClientRect = () => ({ left: 100, top: 50, width: 400, height: 36 });
+element('tracks').getBoundingClientRect = () => ({ left: 100, top: 50, width: 400, height: Number.parseFloat(element('trackSurface').style.height) || 36 });
 sandbox.window.devicePixelRatio = 2;
 run('sizeTimeline(); renderReview()');
+const timelineX = (t) => 178 + 318 * t;
+const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} ≠ ${expected}`);
 const settleSeek = async () => { await Promise.resolve(); await Promise.resolve(); };
 const timelineClick = async (x, y) => {
   pointer('pointerdown', x, y, 1, 'time');
@@ -299,20 +304,20 @@ const timelineClick = async (x, y) => {
   await settleSeek();
 };
 // Première ligne blanche : sélection du suivi et déplacement à l'instant cliqué.
-await timelineClick(220, 60);
+await timelineClick(timelineX(0.3), 64);
 assert.equal(S.sel.track, S.tracks[0]);
-assert.equal(S.t, 0.3);
+near(S.t, 0.3);
 assert.equal(element('maskHandles').hidden, false);
 assert.equal(element('maskTiming').hidden, false);
 // Ligne manuelle en bas : sélection du masque ajouté, même s'il n'était pas encore visible.
-await timelineClick(300, 83);
+await timelineClick(timelineX(0.5), 92);
 assert.equal(S.sel.manual, S.manual[0]);
-assert.equal(S.t, 0.5);
+near(S.t, 0.5);
 assert.equal(element('view').captured, null);
 assert.equal(element('time').captured, null);
 // Zone sans trait : le curseur reste utilisable et la sélection reste disponible pour régler sa durée.
-await timelineClick(460, 70);
-assert.equal(S.t, 0.9);
+await timelineClick(timelineX(0.9), 70);
+near(S.t, 0.9);
 assert.equal(S.sel.manual, S.manual[0]);
 assert.equal(element('maskHandles').hidden, true);
 assert.equal(element('maskTiming').hidden, false);
@@ -320,30 +325,33 @@ console.log('OK : clic sur les traits automatiques et manuels, haute densité et
 
 // Un passage retiré n'est pas sélectionnable comme s'il contenait encore un trait.
 run(`S.sel = null; S.tracks[0].off = [{ from: 12, off: true }, { from: 15, off: false }]; renderReview();`);
-await timelineClick(280, 60);
+await timelineClick(timelineX(0.45), 64);
 assert.equal(S.sel, null);
-await timelineClick(320, 60);
+await timelineClick(timelineX(0.55), 64);
 assert.equal(S.sel.track, S.tracks[0]);
-// Si plusieurs traits se superposent, le masque visible au-dessus est sélectionné.
+// Les lignes restent distinctes même quand deux masques occupent la même période.
 run(`S.manual.push({ cx: 0.8, cy: 0.8, w: 0.1, h: 0.1, t0: 0.4, t1: 0.7 }); renderReview();`);
-await timelineClick(300, 83);
+assert.equal(element('trackSurface').style.height, '84px');
+await timelineClick(timelineX(0.5), 120);
 assert.equal(S.sel.manual, S.manual[1]);
-console.log('OK : les traits retirés sont ignorés et les superpositions sélectionnent le masque visible');
+await timelineClick(timelineX(0.5), 92);
+assert.equal(S.sel.manual, S.manual[0]);
+console.log('OK : les traits retirés sont ignorés et chaque masque garde sa ligne');
 
 // Glisser dans la timeline continue de parcourir la vidéo, sans changer le masque choisi au début du geste.
-pointer('pointerdown', 220, 60, 1, 'time');
+pointer('pointerdown', timelineX(0.3), 64, 1, 'time');
 await settleSeek();
 assert.equal(S.sel.track, S.tracks[0]);
-pointer('pointermove', 420, 83, 2, 'time');
+pointer('pointermove', timelineX(0.8), 92, 2, 'time');
 await settleSeek();
-assert.equal(S.t, 0.3); // Un deuxième doigt ne déplace pas le curseur capturé.
-pointer('pointermove', 500, 83, 1, 'time');
+near(S.t, 0.3); // Un deuxième doigt ne déplace pas le curseur capturé.
+pointer('pointermove', timelineX(1), 92, 1, 'time');
 await settleSeek();
 assert.equal(S.t, 0.999);
 assert.equal(S.sel.track, S.tracks[0]);
-pointer('pointercancel', 500, 83, 1, 'time');
+pointer('pointercancel', timelineX(1), 92, 1, 'time');
 assert.equal(element('time').captured, null);
-pointer('pointermove', 100, 60, 1, 'time');
+pointer('pointermove', timelineX(0), 64, 1, 'time');
 await settleSeek();
 assert.equal(S.t, 0.999);
 // La navigation au clavier conserve le gestionnaire input du curseur natif.
@@ -352,3 +360,75 @@ element('time').listeners.get('input')({ target: element('time') });
 await settleSeek();
 assert.equal(S.t, 0.25);
 console.log('OK : glissement du curseur, limites de la vidéo, multitouch et navigation au clavier');
+
+// Deux points clés interpolent la position et la taille ; un point supprimé rend la pose de base.
+run(`S.tracks = []; S.frames = Array.from({ length: 30 }, () => []); S.t = 0;
+  S.manual = [{ id: 20, cx: 0.2, cy: 0.3, w: 0.1, h: 0.2, t0: 0, t1: 1 }];
+  S.sel = { manual: S.manual[0] }; renderReview();`);
+element('mKey').onclick();
+assert.equal(S.manual[0].keys.has(0), true);
+run('S.t = 0.5; renderReview()');
+element('mKey').onclick();
+assert.equal(S.manual[0].keys.has(15), true);
+pointer('pointerdown', 200, 300);
+pointer('pointermove', 600, 500);
+pointer('pointerup', 600, 500);
+resize('se', 40, -20);
+const halfway = run('manualPose(S.manual[0], 7 / 30)');
+near(halfway.cx, 0.2 + (0.62 - 0.2) * 7 / 15);
+near(halfway.cy, 0.3 + (0.49 - 0.3) * 7 / 15);
+near(halfway.w, 0.1 + (0.14 - 0.1) * 7 / 15);
+near(halfway.h, 0.2 + (0.18 - 0.2) * 7 / 15);
+near(run('manualPose(S.manual[0], 29 / 30).cx'), 0.62);
+assert.equal(element('mKey').textContent, '◆ Retirer le point');
+const keyExport = paint(7 / 30);
+assert.equal(keyExport.length, 1);
+assert.ok(keyExport[0][0] > 150 && keyExport[0][0] < 600);
+element('mKey').onclick();
+assert.equal(S.manual[0].keys.has(15), false);
+near(run('manualPose(S.manual[0], 15 / 30).cx'), 0.2);
+console.log('OK : points clés, interpolation à l’export et retrait du point');
+
+// Le zoom est local à l'aperçu ; déplacer l'image ne modifie aucun masque.
+element('zoomIn').onclick();
+assert.equal(S.zoom, 1.5);
+element('panView').onclick();
+assert.equal(S.panMode, true);
+const maskBeforePan = { ...S.manual[0].keys.get(0) };
+pointer('pointerdown', 500, 500);
+pointer('pointermove', 600, 550);
+pointer('pointerup', 600, 550);
+assert.equal(S.panX, 100);
+assert.equal(S.panY, 50);
+for (const field of ['cx', 'cy', 'w', 'h']) assert.equal(S.manual[0].keys.get(0)[field], maskBeforePan[field]);
+element('view').getBoundingClientRect = () => ({
+  left: (1 - S.zoom) * 500 + S.panX, top: (1 - S.zoom) * 500 + S.panY,
+  width: 1000 * S.zoom, height: 1000 * S.zoom,
+});
+element('panView').onclick();
+pointer('pointerdown', 150, 250);
+pointer('pointerup', 150, 250);
+assert.equal(S.sel.manual, S.manual[0]);
+assert.equal(S.manual.length, 1);
+element('zoomReset').onclick();
+assert.equal(S.zoom, 1);
+assert.equal(S.panMode, false);
+assert.equal(S.panX, 0);
+assert.equal(S.panY, 0);
+assert.equal(element('view').style.transform, 'translate(0px, 0px) scale(1)');
+console.log('OK : zoom et déplacement de l’aperçu sans modifier les masques');
+
+// Beaucoup de masques agrandissent la surface de la frise ; un geste vertical la fait défiler.
+run(`S.manual = Array.from({ length: 9 }, (_, i) => ({ id: i, cx: 0.2, cy: 0.3, w: 0.1, h: 0.2, t0: 0, t1: 1 }));
+  S.sel = null; renderReview();`);
+assert.equal(element('trackSurface').style.height, '252px');
+element('trackScroll').scrollTop = 0;
+pointer('pointerdown', timelineX(0.3), 64, 3, 'time');
+await settleSeek();
+const timeBeforeScroll = S.t;
+pointer('pointermove', timelineX(0.3), 10, 3, 'time');
+await settleSeek();
+assert.equal(element('trackScroll').scrollTop, 54);
+assert.equal(S.t, timeBeforeScroll);
+pointer('pointerup', timelineX(0.3), 10, 3, 'time');
+console.log('OK : lignes individuelles et défilement vertical de la timeline');

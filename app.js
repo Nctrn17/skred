@@ -50,7 +50,7 @@ const DET_SIDE = 1280;        // avec l'option « aller plus vite »
 const MAX_SIDE = 1920;        // plus grand côté de la vidéo produite
 const MAX_SIDE_PHOTO = 4096;
 
-const VERSION = '2026-10-09.3';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
+const VERSION = '2026-10-09.4';   // affichée en bas de page, pour savoir quelle version tourne sur un téléphone
 const DEBUG = location.hostname === 'localhost' || new URLSearchParams(location.search).has('debug');
 
 const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -74,10 +74,11 @@ const S = {
   start: 0, first: 0,
   tracks: [],       // un suivi par visage : { id, dets: Map(image -> cadre), off: retraits faits à la main (isOff) }
   frames: [],       // pour chaque image, les cases à dessiner : [{ x, y, w, h, track }] en pixels
-  manual: [],       // masques ajoutés à la main : [{ id, cx, cy, w, h, t0, t1, edits: Map(image -> position et taille) }]
+  manual: [],       // masques ajoutés à la main : [{ id, cx, cy, w, h, t0, t1, edits, keys: Map(image -> position et taille) }]
   sel: null,        // masque sélectionné : { manual } ou { track, box }
   nextId: 1,
   t: 0,
+  zoom: 1, panX: 0, panY: 0, panMode: false,
   style: 'noir',
   emoji: '😶',
   keepAudio: true,
@@ -777,13 +778,26 @@ function buildTracks(results) {
 
 /* ---------- Dessin des masques ---------- */
 
-// Une correction ne vaut que pour l'image choisie. Les autres gardent la position de départ.
-const manualPose = (m, t = S.t) => m.edits?.get(frameIndex(t)) || m;
+// Deux points clés donnent la position et la taille entre leurs images. Une correction ponctuelle reste prioritaire.
+function manualPose(m, t = S.t) {
+  const j = frameIndex(t);
+  if (m.edits?.has(j)) return m.edits.get(j);
+  if (m.keys?.has(j)) return m.keys.get(j);
+  if (!m.keys || m.keys.size < 2) return m;
+  const indices = [...m.keys.keys()].sort((a, b) => a - b);
+  const before = indices.filter((i) => i < j).at(-1) ?? indices[0];
+  const after = indices.find((i) => i > j) ?? indices.at(-1);
+  if (before === after) return m.keys.get(before);
+  const a = m.keys.get(before), b = m.keys.get(after), k = (j - before) / (after - before);
+  return { cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k,
+    w: a.w + (b.w - a.w) * k, h: a.h + (b.h - a.h) * k };
+}
 function editableManual(m, j = frameIndex(S.t)) {
   if (isPhoto()) return m;
+  if (m.keys?.has(j)) return m.keys.get(j);
   m.edits ||= new Map();
   if (!m.edits.has(j)) {
-    const { cx, cy, w, h, size } = m;
+    const { cx, cy, w, h, size } = manualPose(m, frameTime(j));
     m.edits.set(j, { cx, cy, w, h, size });
   }
   return m.edits.get(j);
@@ -887,7 +901,7 @@ function openReview(t) {
   time.max = S.duration;
   time.step = 1 / S.fps;
   for (const el of document.querySelectorAll('.videoOnly')) el.hidden = isPhoto();
-  $('hint').textContent = (matchMedia('(pointer: fine)').matches ? 'Clique sur' : 'Touche') + ' un visage pour ajouter un masque. Déplace-le ou tire ses coins pour le redimensionner' + (isPhoto() ? '.' : '. Avance image par image avec ‹ ›.');
+  $('hint').textContent = (matchMedia('(pointer: fine)').matches ? 'Clique sur' : 'Touche') + ' un visage pour ajouter un masque. Déplace-le ou tire ses coins pour le redimensionner' + (isPhoto() ? '.' : '. Place des points clés ◆ pour le faire suivre un mouvement.');
   $('stats').hidden = !DEBUG || isPhoto();
   if (DEBUG && !isPhoto()) {
     const n = S.frames.length;
@@ -896,6 +910,7 @@ function openReview(t) {
       + `${S.seekFallbacks} reprises, source ${S.srcFps.toFixed(1)} i/s, ${navigator.hardwareConcurrency || '?'} cœurs, ${navigator.deviceMemory || '?'} Go`;
   }
   sizeTimeline();
+  updateViewZoom();
   refreshPanels();
   goTo(t);
 }
@@ -908,14 +923,45 @@ function drawnRect() {
   return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, w, h, k };
 }
 
+// Le zoom agit uniquement sur l'aperçu : le canevas utilisé pour l'export garde ses dimensions.
+function updateViewZoom() {
+  const stage = $('stage').getBoundingClientRect();
+  S.panX = clamp(S.panX, -(S.zoom - 1) * stage.width / 2, (S.zoom - 1) * stage.width / 2);
+  S.panY = clamp(S.panY, -(S.zoom - 1) * stage.height / 2, (S.zoom - 1) * stage.height / 2);
+  view.style.transform = `translate(${S.panX}px, ${S.panY}px) scale(${S.zoom})`;
+  $('zoomReset').textContent = Math.round(S.zoom * 100) + ' %';
+  $('zoomOut').disabled = S.zoom <= 1;
+  $('zoomIn').disabled = S.zoom >= 4;
+  $('panView').hidden = S.zoom <= 1;
+  $('panView').classList.toggle('on', S.panMode);
+  $('panView').setAttribute('aria-pressed', String(S.panMode));
+  view.style.cursor = S.panMode ? 'grab' : '';
+  refreshPanels();
+}
+function setZoom(value) {
+  S.zoom = clamp(value, 1, 4);
+  if (S.zoom === 1) S.panX = S.panY = 0, S.panMode = false;
+  updateViewZoom();
+}
+for (const [id, direction] of [['zoomOut', -1], ['zoomIn', 1]]) $(id).onclick = () => {
+  const levels = [1, 1.5, 2, 3, 4];
+  const i = levels.findIndex((z) => z >= S.zoom);
+  setZoom(levels[clamp(i + direction, 0, levels.length - 1)]);
+};
+$('zoomReset').onclick = () => setZoom(1);
+$('panView').onclick = () => { S.panMode = !S.panMode; updateViewZoom(); };
+
 // La frise sous l'image : un trait par visage suivi, sur la durée où il est masqué, et le curseur.
 function sizeTimeline() {
   const c = $('tracks');
+  const rows = S.tracks.length + S.manual.length;
+  $('trackSurface').style.height = Math.max(36, rows * 28) + 'px';
   const r = c.getBoundingClientRect();
   if (!r.width) return;
   const dpr = window.devicePixelRatio || 1;
-  c.width = Math.round(r.width * dpr);
-  c.height = Math.round(r.height * dpr);
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) c.height = h;
 }
 
 let timelineSegments = [], timelineDrag = null;
@@ -923,15 +969,22 @@ let timelineSegments = [], timelineDrag = null;
 function drawTimeline() {
   timelineSegments = [];
   if (isPhoto()) return;
+  sizeTimeline();
   const c = $('tracks');
   const ctx = c.getContext('2d');
   const W = c.width, H = c.height;
   if (!W) return;
   ctx.clearRect(0, 0, W, H);
   const N = Math.max(1, S.frames.length);
-  const rows = 3, rowH = Math.max(2, Math.floor(H / 6));
-  const segment = (sel, from, to, y, color) => {
-    const x = Math.floor(from / S.duration * W), w = Math.max(2, Math.ceil((to - from) / S.duration * W));
+  const dpr = window.devicePixelRatio || 1;
+  const labelW = Math.min(W * 0.3, 78 * dpr);
+  const plotW = Math.max(1, W - labelW - 4 * dpr);
+  const rowH = 9 * dpr, rowStep = 28 * dpr;
+  const rowY = (i) => i * rowStep + 10 * dpr;
+  const timeX = (t) => labelW + clamp(t / Math.max(0.001, S.duration), 0, 1) * plotW;
+  const segment = (sel, from, to, row, color) => {
+    const x = Math.floor(timeX(from)), w = Math.max(2, Math.ceil(timeX(to) - x));
+    const y = rowY(row);
     const selected = S.sel && (sel.track ? S.sel.track === sel.track : S.sel.manual === sel.manual);
     ctx.fillStyle = selected ? '#e4ff3a' : color;
     ctx.fillRect(x, y, w, rowH);
@@ -940,25 +993,44 @@ function drawTimeline() {
       ctx.lineWidth = Math.max(1, window.devicePixelRatio || 1);
       ctx.strokeRect(x, y, w, rowH);
     }
-    timelineSegments.push({ sel, from, to, x, y, w, h: rowH });
+    timelineSegments.push({ sel, from, to, x, y: row * rowStep, w, h: rowStep });
   };
   S.tracks.forEach((t, i) => {
+    ctx.fillStyle = S.sel?.track === t ? '#e4ff3a' : '#efede6';
+    ctx.font = `${11 * dpr}px monospace`;
+    ctx.fillText(`Suivi ${i + 1}`, 5 * dpr, rowY(i) + 8 * dpr, labelW - 8 * dpr);
     const { t0, t1 } = maskRange(t);
     const a = Math.max(0, Math.floor(t0 * S.fps)), b = Math.min(N - 1, Math.ceil(t1 * S.fps) - 1);
-    const y = Math.round(H * (0.2 + 0.25 * (i % rows)));
     // Un trait par passage masqué : les images où le masque a été retiré restent vides.
     for (let s = a; s <= b; s++) {
       if (isOff(t, s)) continue;
       let e = s;
       while (e < b && !isOff(t, e + 1)) e++;
-      segment({ track: t }, Math.max(t0, s / S.fps), Math.min(t1, (e + 1) / S.fps), y, '#efede6');
+      segment({ track: t }, Math.max(t0, s / S.fps), Math.min(t1, (e + 1) / S.fps), i, '#efede6');
       s = e;
     }
   });
-  for (const m of S.manual) segment({ manual: m }, m.t0, m.t1, Math.min(Math.round(H * 0.85), H - rowH), '#e4ff3a');
+  S.manual.forEach((m, i) => {
+    const row = S.tracks.length + i;
+    ctx.fillStyle = S.sel?.manual === m ? '#e4ff3a' : '#efede6';
+    ctx.font = `${11 * dpr}px monospace`;
+    ctx.fillText(`Ajout ${i + 1}`, 5 * dpr, rowY(row) + 8 * dpr, labelW - 8 * dpr);
+    segment({ manual: m }, m.t0, m.t1, row, '#e4ff3a');
+    for (const j of m.keys?.keys() || []) {
+      const t = j / S.fps;
+      if (t < m.t0 || t >= m.t1) continue;
+      const x = timeX(t), y = rowY(row) + rowH / 2;
+      ctx.fillStyle = '#0b0b0a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5 * dpr);
+      ctx.lineTo(x + 5 * dpr, y);
+      ctx.lineTo(x, y + 5 * dpr);
+      ctx.lineTo(x - 5 * dpr, y);
+      ctx.fill();
+    }
+  });
   ctx.fillStyle = '#e4ff3a';
-  const x = Math.round(S.t / Math.max(0.001, S.duration) * (W - 3));
-  ctx.fillRect(x, 0, 3, H);
+  ctx.fillRect(Math.round(timeX(S.t)), 0, 2 * dpr, H);
 }
 
 function timelinePoint(e) {
@@ -968,7 +1040,7 @@ function timelinePoint(e) {
 
 function endTimelineDrag() {
   if (timelineDrag === null) return;
-  const pointer = timelineDrag;
+  const pointer = timelineDrag.pointer;
   timelineDrag = null;
   if ($('time').hasPointerCapture(pointer)) $('time').releasePointerCapture(pointer);
 }
@@ -982,24 +1054,33 @@ $('time').addEventListener('pointerdown', (e) => {
   if (!c.width) return;
   // Le dernier trait dessiné est celui qui est visible si plusieurs masques se chevauchent.
   const hit = [...timelineSegments].reverse().find((s) => inside(s, p.x, p.y));
-  let t = clamp(p.x / c.width, 0, 1) * S.duration;
+  const labelW = Math.min(c.width * 0.3, 78 * (window.devicePixelRatio || 1));
+  const plotW = Math.max(1, c.width - labelW - 4 * (window.devicePixelRatio || 1));
+  let t = clamp((p.x - labelW) / plotW, 0, 1) * S.duration;
   if (hit) {
     S.sel = hit.sel;
     t = clamp(t, hit.from, Math.max(hit.from, hit.to - 1e-9));
   }
-  timelineDrag = e.pointerId;
+  timelineDrag = { pointer: e.pointerId, x: e.clientX, y: e.clientY, lastY: e.clientY, scrolling: false };
   $('time').focus({ preventScroll: true });
   $('time').setPointerCapture(e.pointerId);
   goTo(t);
 });
 $('time').addEventListener('pointermove', (e) => {
-  if (timelineDrag !== e.pointerId) return;
+  if (timelineDrag?.pointer !== e.pointerId) return;
   e.preventDefault();
+  if (!timelineDrag.scrolling && Math.abs(e.clientY - timelineDrag.y) > 8 && Math.abs(e.clientY - timelineDrag.y) > Math.abs(e.clientX - timelineDrag.x)) timelineDrag.scrolling = true;
+  if (timelineDrag.scrolling) {
+    $('trackScroll').scrollTop += timelineDrag.lastY - e.clientY;
+    timelineDrag.lastY = e.clientY;
+    return;
+  }
   const c = $('tracks');
-  goTo(clamp(timelinePoint(e).x / c.width, 0, 1) * S.duration);
+  const labelW = Math.min(c.width * 0.3, 78 * (window.devicePixelRatio || 1));
+  goTo(clamp((timelinePoint(e).x - labelW) / Math.max(1, c.width - labelW - 4 * (window.devicePixelRatio || 1)), 0, 1) * S.duration);
 });
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) $('time').addEventListener(ev, (e) => {
-  if (timelineDrag === e.pointerId) endTimelineDrag();
+  if (timelineDrag?.pointer === e.pointerId) endTimelineDrag();
 });
 
 function stopPlay() {
@@ -1030,7 +1111,7 @@ async function togglePlay() {
 function refreshPanels(force = false) {
   const m = S.sel && S.sel.manual;
   const tr = S.sel && S.sel.track;
-  $('maskBar').hidden = !m && !tr;
+  $('maskBar').hidden = (!m && !tr) || S.panMode;
   const mask = m || tr;
   $('maskTiming').hidden = !mask || isPhoto();
   if (mask && !isPhoto()) {
@@ -1043,6 +1124,14 @@ function refreshPanels(force = false) {
     $('mAll').classList.toggle('on', t0 === 0 && t1 === S.duration);
   }
   const j = frameIndex(S.t);
+  $('mKey').hidden = !m || isPhoto();
+  if (m && !isPhoto()) {
+    const keyed = !!m.keys?.has(j);
+    $('mKey').disabled = !maskVisible(m, S.t);
+    $('mKey').classList.toggle('on', keyed);
+    $('mKey').textContent = keyed ? '◆ Retirer le point' : '◆ Point clé';
+    $('mKey').title = keyed ? 'Retirer le point clé de cette image' : 'Enregistrer la position et la taille sur cette image';
+  }
   const off = tr && isOff(tr, j);
   const last = tr && tr.off[tr.off.length - 1];
   const fromHere = tr && tr.off.length && last.at !== j && !isPhoto() ? " à partir d'ici" : '';
@@ -1084,8 +1173,8 @@ function placeMaskBar() {
 const HANDLE_NAMES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 function placeMaskHandles() {
   const r = selectedRect();
-  $('maskHandles').hidden = !r;
-  if (!r) return;
+  $('maskHandles').hidden = !r || S.panMode;
+  if (!r || S.panMode) return;
   const d = drawnRect(), stage = $('stage').getBoundingClientRect();
   for (const h of HANDLE_NAMES) {
     const x = r.x + r.w * (h.includes('w') ? 0 : h.includes('e') ? 1 : 0.5);
@@ -1118,6 +1207,11 @@ view.addEventListener('pointerdown', (e) => {
   if (drag || seekBusy) return;
   e.preventDefault();
   stopPlay();
+  if (S.panMode && S.zoom > 1) {
+    drag = { pan: true, x: e.clientX, y: e.clientY, panX: S.panX, panY: S.panY, pointer: e.pointerId, target: view };
+    view.setPointerCapture(e.pointerId);
+    return;
+  }
   const p = canvasPoint(e);
   if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) { deselect(); return; }
   const px = p.x * S.W, py = p.y * S.H;
@@ -1152,6 +1246,12 @@ view.addEventListener('pointerdown', (e) => {
 function moveMask(e) {
   if (!drag || drag.pointer !== e.pointerId) return;
   e.preventDefault();
+  if (drag.pan) {
+    S.panX = drag.panX + e.clientX - drag.x;
+    S.panY = drag.panY + e.clientY - drag.y;
+    updateViewZoom();
+    return;
+  }
   const p = canvasPoint(e);
   if (drag.handle) {
     const r = drag.rect, h = drag.handle;
@@ -1239,6 +1339,22 @@ for (const [id, which] of [['mStart', 'start'], ['mEnd', 'end']]) $(id).addEvent
 $('mStartHere').onclick = () => setBoundary('start', frameIndex(S.t) / S.fps);
 $('mEndHere').onclick = () => setBoundary('end', Math.min(S.duration, (frameIndex(S.t) + 1) / S.fps));
 $('mAll').onclick = () => setMaskRange(0, S.duration);
+$('mKey').onclick = () => {
+  const m = selectedManual();
+  if (!m || isPhoto() || !maskVisible(m, S.t)) return;
+  stopPlay();
+  const j = frameIndex(S.t);
+  m.keys ||= new Map();
+  if (m.keys.has(j)) m.keys.delete(j);
+  else {
+    const p = manualPose(m);
+    const w = p.w ?? p.size * Math.min(S.W, S.H) / S.W;
+    const h = p.h ?? p.size * Math.min(S.W, S.H) / S.H;
+    m.keys.set(j, { cx: p.cx, cy: p.cy, w, h });
+    m.edits?.delete(j);
+  }
+  renderReview();
+};
 $('mDelete').onclick = () => {
   if (S.sel && S.sel.track) { toggleTrack(S.sel.track, frameIndex(S.t)); refreshPanels(); renderReview(); return; }
   S.manual = S.manual.filter((x) => x !== selectedManual());
@@ -1276,7 +1392,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); goTo(S.t + 1 / S.fps); }
   else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
 });
-window.addEventListener('resize', () => { if (!$('s-review').hidden) { sizeTimeline(); renderReview(); } });
+window.addEventListener('resize', () => { if (!$('s-review').hidden) { updateViewZoom(); renderReview(); } });
 
 /* ---------- Création du fichier masqué ---------- */
 
@@ -1619,6 +1735,10 @@ function resetAll() {
   S.manual = [];
   S.sel = null;
   S.t = 0;
+  S.zoom = 1;
+  S.panX = S.panY = 0;
+  S.panMode = false;
+  view.style.transform = '';
   S.start = S.first = 0;
   $('fatal').hidden = true;
 }
