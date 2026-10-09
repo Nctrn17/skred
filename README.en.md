@@ -3,9 +3,11 @@
 *[Version française](README.md)*
 
 Hide the faces in a video or photo before posting it, right in the phone's browser.
-Nothing is sent to a server: no account, no analytics, no third-party file loaded from another site.
+Videos, photos and output files are processed locally on your device. The service does not send them to any server. You choose whether to save or share the result. No account, no analytics, no third-party file loaded from another site.
 
-Live at [skred.fr](https://skred.fr) (French interface). Also available as an Android app.
+This version is maintained by **ethone** in the [ethoneslop/skred fork](https://github.com/ethoneslop/skred), based on the [original Nctrn17/skred project](https://github.com/Nctrn17/skred). For problems with this version, open an [issue on the fork](https://github.com/ethoneslop/skred/issues).
+
+The original project is available at [skred.fr](https://skred.fr) (French interface), and as an Android app. This repository contains ethone's modified version.
 
 ## Why
 
@@ -41,8 +43,8 @@ You don't have to take our word for it. Each point below can be checked without 
   skred.fr itself only serves static files: there is no server-side code that could receive a video.
 - **The automated test** (see "Testing") fails if a single request goes out after the page has loaded.
 - **The code is public.** Network calls can be found in seconds: `grep -rn "fetch(" app.js sw.js`.
-- **The website serves this code.** `bash outils/verifier-site.sh` downloads every file from skred.fr and compares it,
-  byte for byte, with the latest commit of the repository (see "Testing").
+- **Check the code being served.** `outils/verifier-site.sh` compares a website's files with the latest commit of the repository.
+  For this fork, use `SITE` to specify where your version is published (see "Testing"). By default, the script checks skred.fr, the original project's website.
 
 ## How it works
 
@@ -181,7 +183,15 @@ the same rule with CenterFace, the model used by [deface](https://github.com/ORB
 
 ## Contributing
 
-Before opening a PR, read [CONTRIBUTING.md](CONTRIBUTING.md) (in French; you can write in English).
+Before opening a PR on the [ethoneslop/skred fork](https://github.com/ethoneslop/skred), read [CONTRIBUTING.md](CONTRIBUTING.md) (in French; you can write in English).
+
+## Contributions by ethone
+
+**ethone** contributes under a pseudonym, in a non-professional capacity. Contributions to this version include moving masks frame by frame, resizing them freely as squares or rectangles using handles, choosing their start and end times, and selecting them from the timeline.
+
+ethone is responsible for the features and changes added to this fork, their maintenance, and security follow-up for this version of the service. Changes made by ethone must be documented through commits on [this fork](https://github.com/ethoneslop/skred).
+
+For bugs or security concerns affecting this version, open an [issue on ethone's fork](https://github.com/ethoneslop/skred/issues), rather than on the original repository, so ethone can track and handle the report directly. See [SECURITY.md](SECURITY.md) and the [legal notice](mentions.html) (in French).
 
 ## Licence
 
