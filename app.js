@@ -80,7 +80,7 @@ const S = {
   t: 0,
   style: 'noir',
   emoji: '😶',
-  keepAudio: true,
+  audioMode: 'original',
   job: null,        // tâche en cours (analyse ou création), annulable
   playing: false,
   file: null,       // fichier d'origine, relu directement par l'export rapide
@@ -354,7 +354,7 @@ async function init() {
     console.error(e);
     if (window.diag) window.diag('init échoue : ' + (e && e.message) + ' | ' + String(e && e.stack).slice(0, 300));
     $('pickText').textContent = 'Outil indisponible';
-    fail($('homeError'), "L'outil n'a pas pu se charger sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
+    fail($('homeError'), 'L\'outil n\'a pas pu se charger sur ce navigateur. Essaie avec Chrome ou Safari à jour.');
   }
 }
 
@@ -473,7 +473,7 @@ async function loadFile(file) {
     if (!w || !h) throw new Error('illisible');
   } catch (e) {
     if (window.diag) window.diag('échec lecture : ' + (e && e.message));
-    fail($('homeError'), "Ton navigateur n'arrive pas à lire ce fichier. Essaie avec un autre, ou enregistre-le dans un autre format.");
+    fail($('homeError'), 'Ton navigateur n\'arrive pas à lire ce fichier. Essaie avec un autre, ou enregistre-le dans un autre format.');
     return;
   }
 
@@ -575,7 +575,7 @@ async function scan() {
     // Une image non analysée serait une image non masquée : on préfère tout arrêter.
     console.error(error || 'images manquantes');
     goHome();
-    fail($('homeError'), "L'analyse a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
+    fail($('homeError'), 'L\'analyse a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.');
     return;
   }
   S.scanMs = performance.now() - started;
@@ -962,7 +962,7 @@ function refreshPanels() {
   const j = frameIndex(S.t);
   const off = tr && isOff(tr, j);
   const last = tr && tr.off[tr.off.length - 1];
-  const fromHere = tr && tr.off.length && last.at !== j && !isPhoto() ? " à partir d'ici" : '';
+  const fromHere = tr && tr.off.length && last.at !== j && !isPhoto() ? ' à partir d\'ici' : '';
   $('mDelete').textContent = off ? '↺' : '×';
   $('mDelete').title = tr ? (off ? 'Remettre ce masque' : 'Retirer ce masque') + fromHere : 'Retirer';
   const removed = S.tracks.filter(isRemoved).length;
@@ -1081,9 +1081,18 @@ $('styleBtn').onclick = () => {
   renderReview();
 };
 $('audioBtn').onclick = () => {
-  S.keepAudio = !S.keepAudio;
-  $('audioBtn').classList.toggle('on', S.keepAudio);
-  $('audioNote').textContent = S.keepAudio ? 'Son gardé. La voix aussi permet de reconnaître quelqu\'un.' : 'Son coupé : la vidéo sera muette.';
+  S.audioMode = S.audioMode === 'original' ? 'scramble' : S.audioMode === 'scramble' ? 'mute' : 'original';
+  const labels = {
+    original: ['SON', 'Son gardé. La voix aussi permet de reconnaître quelqu\'un.'],
+    scramble: ['BROUILLÉ', 'Son brouillé sur toute la piste. Touche pour couper. Cela ne garantit pas l\'anonymat.'],
+    mute: ['MUET', 'Son coupé. Touche pour rétablir le son d\'origine.'],
+  };
+  const [label, note] = labels[S.audioMode];
+  $('audioBtn').textContent = label;
+  $('audioBtn').title = note;
+  $('audioBtn').setAttribute('aria-label', note);
+  $('audioBtn').classList.toggle('on', S.audioMode !== 'mute');
+  $('audioNote').textContent = note;
 };
 document.addEventListener('keydown', (e) => {
   if ($('s-review').hidden || isPhoto() || e.target.tagName === 'INPUT') return;
@@ -1125,7 +1134,7 @@ async function finish(blob, name, info) {
   $('result').onerror = () => {
     if (isPhoto() || !S.previewUrl) return;
     $('result').hidden = true;
-    $('doneCheck').textContent = "L'aperçu ne s'affiche pas ici. Ouvre la vidéo enregistrée et regarde-la en entier avant de poster.";
+    $('doneCheck').textContent = 'L\'aperçu ne s\'affiche pas ici. Ouvre la vidéo enregistrée et regarde-la en entier avant de poster.';
   };
   (isPhoto() ? $('resultImg') : $('result')).src = S.previewUrl;
   $('download').href = S.resultUrl;
@@ -1145,7 +1154,7 @@ async function exportPhoto() {
   drawSource(vctx);
   paint(vctx, 0, false);
   const blob = await new Promise((r) => view.toBlob(r, 'image/jpeg', 0.92));
-  if (!blob) { fail($('fatal'), "Ce navigateur n'a pas pu créer la photo."); return; }
+  if (!blob) { fail($('fatal'), 'Ce navigateur n\'a pas pu créer la photo.'); return; }
   finish(blob, 'photo-masquee.jpg', 'Fichier JPEG');
 }
 
@@ -1182,6 +1191,48 @@ function pickMime() {
     'video/webm',
   ];
   return list.find((m) => MediaRecorder.isTypeSupported(m)) || null;
+}
+
+async function connectScrambledAudio(destination) {
+  const ctx = S.audioCtx;
+  const source = S.audioNode;
+
+  await ctx.audioWorklet.addModule('/audio/pitch-shifter.js');
+
+  const vocoder = new AudioWorkletNode(ctx, 'pitch-shifter', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+
+  vocoder.parameters.get('semitones').value = -4;
+
+  const highpass = ctx.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = 100;
+
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = 7000;
+
+  const output = ctx.createGain();
+  output.gain.value = 1.0;
+
+  source.connect(highpass);
+  highpass.connect(vocoder);
+  vocoder.connect(lowpass);
+  lowpass.connect(output);
+  output.connect(destination);
+
+  return () => {
+    for (const node of [
+      source,
+      highpass,
+      vocoder,
+      lowpass,
+      output
+    ]) {
+      try {
+        node.disconnect();
+      } catch {}
+    }
+  };
 }
 
 // Export rapide. Renvoie false s'il n'a pas pu aller au bout : l'export suivant se fera par enregistrement.
@@ -1224,7 +1275,7 @@ async function exportFast() {
         processedWidth: S.W,
         processedHeight: S.H,
       },
-      audio: { discard: !S.keepAudio },
+      audio: { discard: S.audioMode === 'mute' },
       tags: {},   // rien du fichier d'origine (lieu, date, modèle du téléphone) n'est repris
       showWarnings: false,
     });
@@ -1248,7 +1299,7 @@ async function exportFast() {
 
   if (job.cancelled) { openReview(0); return true; }
   if (!made || !made.size) return false;
-  const sound = audioKept ? 'avec le son' : S.keepAudio ? "sans le son (il n'a pas pu être repris)" : 'sans le son';
+  const sound = audioKept ? 'avec le son' : S.audioMode !== 'mute' ? 'sans le son (il n\'a pas pu être repris)' : 'sans le son';
   if (window.diag) diagPreview(made, await scrubMp4Dates(made));
   finish(await scrubMp4Dates(made), 'video-masquee.mp4', `Fichier MP4, ${sound}, export rapide`);
   return true;
@@ -1257,49 +1308,66 @@ async function exportFast() {
 async function exportVideo() {
   stopPlay();
   S.sel = null;
-  if (S.fast) {
+  if (S.fast && S.audioMode !== 'scramble') {
     if (await exportFast()) return;
     // L'enregistrement doit démarrer juste après un appui sur le bouton (pour le son sur iPhone) : on redemande.
     S.fast = false;
     openReview(0);
-    fail($('fatal'), "L'export rapide n'a pas marché ici. Touche Exporter à nouveau : la vidéo sera créée à vitesse normale.");
+    fail($('fatal'), 'L\'export rapide n\'a pas marché ici. Touche Exporter à nouveau : la vidéo sera créée à vitesse normale.');
     return;
   }
   const mime = pickMime();
   if (!mime || !view.captureStream) {
-    fail($('fatal'), "Ce navigateur ne sait pas créer de vidéo. Essaie avec Chrome ou Safari à jour.");
+    fail($('fatal'), 'Ce navigateur ne sait pas créer de vidéo. Essaie avec Chrome ou Safari à jour.');
     return;
   }
   $('fatal').hidden = true;
 
   // À faire tout de suite, pendant que le navigateur sait encore que l'utilisateur vient de toucher le bouton
   // (sinon l'iPhone refuse de lire la vidéo avec le son).
-  const keepAudio = S.keepAudio;
-  let audioDest = null, audioFailed = false;
+  const audioMode = S.audioMode;
+  const keepAudio = audioMode !== 'mute';
+  let audioDest = null, audioFailed = false, audioResume = null, audioCleanup = null;
   if (keepAudio) {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       S.audioCtx = S.audioCtx || new AC();
-      S.audioCtx.resume();
+      audioResume = S.audioCtx.resume();
       S.audioNode = S.audioNode || S.audioCtx.createMediaElementSource(video);
       audioDest = S.audioCtx.createMediaStreamDestination();
-      S.audioNode.connect(audioDest);
+      if (audioMode === 'scramble') audioCleanup = await connectScrambledAudio(audioDest);
+      else S.audioNode.connect(audioDest);
     } catch (e) {
       console.error(e);
       audioFailed = true;
     }
   }
-  video.muted = !keepAudio;
+  video.muted = !keepAudio || (audioFailed && audioMode === 'scramble');
   video.volume = 1;
   const unlock = video.play();
   if (unlock) await unlock.then(() => video.pause(), () => {});
+
+  if (audioResume) {
+    try {
+      await audioResume;
+    } catch (e) {
+      console.error(e);
+      audioFailed = true;
+    }
+  }
+  if (audioFailed && audioMode === 'scramble') {
+    if (audioCleanup) audioCleanup();
+    video.muted = false;
+    fail($('fatal'), 'Le brouillage audio n\'a pas pu être activé. Essaie avec Chrome ou Safari à jour ; aucun fichier n\'a été créé.');
+    return;
+  }
 
   const job = { cancelled: false };
   S.job = job;
   show('export');
   $('exportBar').style.width = '0';
   $('exportPct').textContent = '0%';
-  $('exportText').textContent = audioFailed ? "Le son n'a pas pu être repris : la vidéo sera muette." : '';
+  $('exportText').textContent = audioFailed ? 'Le son n\'a pas pu être repris : la vidéo sera muette.' : audioMode === 'scramble' ? 'Brouillage actif sur toute la piste audio. Export à vitesse réelle.' : '';
   await keepAwake(true);
 
   const draw = (t) => {
@@ -1315,7 +1383,7 @@ async function exportVideo() {
     S.job = null;
     await keepAwake(false);
     openReview(0);
-    if (!job.cancelled) fail($('fatal'), "La création de la vidéo a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
+    if (!job.cancelled) fail($('fatal'), 'La création de la vidéo a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.');
     return;
   }
   draw(0);
@@ -1369,22 +1437,23 @@ async function exportVideo() {
   if (rec.state !== 'inactive') rec.stop();
   await stopped;
   for (const tr of stream.getTracks()) tr.stop();
-  if (audioDest) S.audioNode.disconnect(audioDest);
-  video.muted = true;
+  if (audioCleanup) audioCleanup();
+  else if (audioDest) S.audioNode.disconnect(audioDest);
+  video.muted = false;
   S.job = null;
   await keepAwake(false);
 
   if (job.cancelled) { openReview(0); return; }
   if (failed || !chunks.length) {
     openReview(0);
-    fail($('fatal'), "La création de la vidéo a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.");
+    fail($('fatal'), 'La création de la vidéo a échoué sur ce navigateur. Essaie avec Chrome ou Safari à jour.');
     return;
   }
 
   const type = (rec.mimeType || mime).split(';')[0];
   const mp4 = type.includes('mp4');
   const made = new Blob(chunks, { type });
-  finish(mp4 ? await scrubMp4Dates(made) : made, 'video-masquee.' + (mp4 ? 'mp4' : 'webm'), `Fichier ${mp4 ? 'MP4' : 'WebM'}${audioDest ? ', avec le son' : ', sans le son'}`);
+  finish(mp4 ? await scrubMp4Dates(made) : made, 'video-masquee.' + (mp4 ? 'mp4' : 'webm'), `Fichier ${mp4 ? 'MP4' : 'WebM'}${audioMode === 'scramble' ? ', son brouillé' : audioDest ? ', avec le son' : ', sans le son'}`);
 }
 
 $('export').onclick = () => (isPhoto() ? exportPhoto() : exportVideo());
@@ -1401,7 +1470,7 @@ if (ANDROID) {
     const where = isPhoto() ? 'Images/skred' : 'Films/skred';
     const r = await androidSend(S.resultFile, 'save');
     $('doneInfo').textContent = $('doneInfo').textContent.replace(/ (Enregistrée|Pas enregistrée).*$/, '')
-      + (r === 'saved' ? ` Enregistrée dans ${where}.` : " Pas enregistrée : réessaie avec le bouton.");
+      + (r === 'saved' ? ` Enregistrée dans ${where}.` : ' Pas enregistrée : réessaie avec le bouton.');
   });
 }
 $('back').onclick = () => { $('result').pause(); openReview(S.t); };
@@ -1494,7 +1563,7 @@ if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.
     if (waiting) return;
     waiting = setTimeout(() => {
       waiting = null;
-      if (!S.file && !$('s-home').hidden) fail($('homeError'), "Aucune vidéo reçue : la photothèque de l'iPhone n'en transmet pas toujours. Enregistre la vidéo dans Fichiers (Partager, puis « Enregistrer dans Fichiers »), puis touche le carré et « Choisir le fichier ».");
+      if (!S.file && !$('s-home').hidden) fail($('homeError'), 'Aucune vidéo reçue : la photothèque de l\'iPhone n\'en transmet pas toujours. Enregistre la vidéo dans Fichiers (Partager, puis « Enregistrer dans Fichiers »), puis touche le carré et « Choisir le fichier ».');
     }, 4000);
   };
   $('file').addEventListener('cancel', nothingCame);
@@ -1519,7 +1588,7 @@ if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.
   if (!installed && touch && ios) {
     button.hidden = false;
     if (/Instagram|FBAN|FBAV|TikTok|musical_ly|Snapchat|LinkedInApp|Twitter/.test(ua)) $('iosInApp').hidden = false;
-    else if (/CriOS|FxiOS|EdgiOS/.test(ua)) $('iosShare').textContent = "Touche le bouton Partager, dans la barre d'adresse";
+    else if (/CriOS|FxiOS|EdgiOS/.test(ua)) $('iosShare').textContent = 'Touche le bouton Partager, dans la barre d\'adresse';
   }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
